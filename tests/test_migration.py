@@ -81,3 +81,22 @@ class TestMigration:
 
         # Should be False because migration is deferred when serial is missing
         assert result is False
+
+    @patch("homeassistant.helpers.entity_registry.async_get")
+    async def test_migrate_skips_when_serial_already_used_by_another_entry(self, mock_get_registry):
+        """Bug #13: migrating to a unique_id already claimed by a different entry must not collide."""
+        mock_get_registry.return_value = self.registry
+        self.registry.async_get_entity_id.return_value = None
+
+        other_entry = MagicMock()
+        other_entry.entry_id = "other_entry_id"
+        other_entry.unique_id = "SN123456"  # same serial the current entry is migrating to
+        self.entry.entry_id = "this_entry_id"
+        self.hass.config_entries.async_entries.return_value = [self.entry, other_entry]
+
+        result = await async_migrate_entry(self.hass, self.entry)
+
+        assert result is True
+        # version bump still happens, but the unique_id update must be skipped
+        for call in self.hass.config_entries.async_update_entry.call_args_list:
+            assert "unique_id" not in call.kwargs

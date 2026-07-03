@@ -487,8 +487,25 @@ async def async_migrate_to_serial_ids(hass: HomeAssistant, entry: ConfigEntry) -
 
     # --- CONFIG ENTRY LOGIC ---
     if entry.unique_id != inverter_serial:
-        _LOGGER.info("Migrating Config Entry ID from %s to %s", entry.unique_id, inverter_serial)
-        hass.config_entries.async_update_entry(entry, unique_id=inverter_serial)
+        # async_update_entry does not enforce unique_id uniqueness the way the config-flow's
+        # _abort_if_unique_id_configured() does, so a leftover duplicate entry for this same
+        # inverter (e.g. an old cloud-only entry alongside a new dual-protocol one) could
+        # otherwise migrate to an identical unique_id and cross-write the shared cache.
+        existing = next(
+            (e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id and e.unique_id == inverter_serial),
+            None,
+        )
+        if existing is not None:
+            _LOGGER.warning(
+                "Cannot migrate config entry %s to serial %s: entry %s already uses this serial. "
+                "Remove the duplicate entry for this inverter before reconfiguring.",
+                entry.entry_id,
+                inverter_serial,
+                existing.entry_id,
+            )
+        else:
+            _LOGGER.info("Migrating Config Entry ID from %s to %s", entry.unique_id, inverter_serial)
+            hass.config_entries.async_update_entry(entry, unique_id=inverter_serial)
 
     return True
 

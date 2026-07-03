@@ -62,6 +62,12 @@ class SolisInverterHub(SolisControllerBase):
         # Serializes protocol switches: _health_tick, the protocol select entity, and its
         # restore path can all call async_set_active concurrently.
         self._switch_lock = asyncio.Lock()
+        # Guards against overlapping _health_tick runs: a probe of a dead standby link
+        # (connect() + read) can take longer than HEALTH_CHECK_INTERVAL_SECONDS, and
+        # async_track_time_interval fires on schedule regardless of whether the previous
+        # callback finished, so a second tick could otherwise race the first's in-flight
+        # probe and its (unlocked) _primary_healthy_since/_last_switch bookkeeping.
+        self._health_tick_running = False
 
     # --- lifecycle -----------------------------------------------------------------
 
@@ -88,7 +94,7 @@ class SolisInverterHub(SolisControllerBase):
         if protocol == PROTOCOL_MODBUS:
             from custom_components.solisconnect.data_retrieval import DataRetrieval
 
-            self._retrieval = DataRetrieval(self.hass, self.modbus)
+            self._retrieval = DataRetrieval(self.hass, self.modbus, hub=self)
         else:
             from custom_components.solisconnect.cloud.cloud_retrieval import CloudDataRetrieval
 
@@ -142,23 +148,30 @@ class SolisInverterHub(SolisControllerBase):
             return False
 
     async def _health_tick(self, now=None):
-        dwell = (datetime.now(UTC) - self._last_switch).total_seconds()
-        secondary = PROTOCOL_CLOUD if self.failover_primary == PROTOCOL_MODBUS else PROTOCOL_MODBUS
-
-        if self._active_name == self.failover_primary:
-            if not self._is_active_healthy() and dwell >= MIN_DWELL_SECONDS and self._controller_for(secondary) is not None:
-                await self.async_set_active(secondary, reason="primary unhealthy")
+        if self._health_tick_running:
+            _LOGGER.debug("(%s) Skipping health tick: a previous probe is still running", self.cache_scope)
             return
+        self._health_tick_running = True
+        try:
+            dwell = (datetime.now(UTC) - self._last_switch).total_seconds()
+            secondary = PROTOCOL_CLOUD if self.failover_primary == PROTOCOL_MODBUS else PROTOCOL_MODBUS
 
-        # Running on the secondary: probe the primary and auto-return with hysteresis
-        if await self._probe_primary():
-            if self._primary_healthy_since is None:
-                self._primary_healthy_since = datetime.now(UTC)
-            healthy_for = (datetime.now(UTC) - self._primary_healthy_since).total_seconds()
-            if healthy_for >= PRIMARY_RECOVERY_SECONDS and dwell >= MIN_DWELL_SECONDS:
-                await self.async_set_active(self.failover_primary, reason="primary recovered")
-        else:
-            self._primary_healthy_since = None
+            if self._active_name == self.failover_primary:
+                if not self._is_active_healthy() and dwell >= MIN_DWELL_SECONDS and self._controller_for(secondary) is not None:
+                    await self.async_set_active(secondary, reason="primary unhealthy")
+                return
+
+            # Running on the secondary: probe the primary and auto-return with hysteresis
+            if await self._probe_primary():
+                if self._primary_healthy_since is None:
+                    self._primary_healthy_since = datetime.now(UTC)
+                healthy_for = (datetime.now(UTC) - self._primary_healthy_since).total_seconds()
+                if healthy_for >= PRIMARY_RECOVERY_SECONDS and dwell >= MIN_DWELL_SECONDS:
+                    await self.async_set_active(self.failover_primary, reason="primary recovered")
+            else:
+                self._primary_healthy_since = None
+        finally:
+            self._health_tick_running = False
 
     # --- delegated surface (entities and services talk to the hub) ---
 
@@ -207,13 +220,27 @@ class SolisInverterHub(SolisControllerBase):
         return self.active.last_modbus_success
 
     def replace_sensor_group(self, old_group, new_groups):
-        self.active.replace_sensor_group(old_group, new_groups)
+        """Apply a recovery edit to every configured controller, not just the active one.
+
+        Modbus and cloud controllers are handed the same sensor-group list objects at
+        setup, but replace_sensor_group reassigns `_sensor_groups` to a new list on
+        whichever controller instance it's called on — so applying it to only the
+        active controller silently loses the recovered layout on the standby protocol
+        once a switch happens.
+        """
+        for controller in (self.modbus, self.cloud):
+            if controller is not None:
+                controller.replace_sensor_group(old_group, new_groups)
 
     def enable_connection(self):
-        self.active.enable_connection()
+        for controller in (self.modbus, self.cloud):
+            if controller is not None:
+                controller.enable_connection()
 
     def disable_connection(self):
-        self.active.disable_connection()
+        for controller in (self.modbus, self.cloud):
+            if controller is not None:
+                controller.disable_connection()
 
     def close_connection(self):
         for controller in (self.modbus, self.cloud):

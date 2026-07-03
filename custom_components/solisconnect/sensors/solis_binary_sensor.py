@@ -74,6 +74,7 @@ class SolisBinaryEntity(RestoreEntity, SwitchEntity):
             if self._register == 5:
                 self._attr_is_on = self._modbus_controller.enabled
                 self._attr_available = True
+                self.schedule_update_ha_state()
                 return self._attr_is_on
 
             value = updated_value
@@ -88,6 +89,7 @@ class SolisBinaryEntity(RestoreEntity, SwitchEntity):
             if self._on_value is not None:
                 self._attr_is_on = value == self._on_value
             _LOGGER.debug(f"switch {self.unique_id} set to {self._attr_is_on}, value = {updated_value}")
+            self.schedule_update_ha_state()
 
     @property
     def is_on(self):

@@ -145,6 +145,56 @@ class TestRecoverMultiRegisterDisable(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(values))
 
 
+class TestRecoveryRoutesThroughHub(unittest.IsolatedAsyncioTestCase):
+    """Bug #13: a recovery edit must land on both protocol controllers, not just Modbus's."""
+
+    async def asyncSetUp(self):
+        self.hass = MagicMock()
+        self.hass.is_running = False
+        self.hass.data = {DOMAIN: {VALUES: {}, SENSOR_ENTITIES: [], NUMBER_ENTITIES: []}}
+        self.controller = MagicMock()
+        self.controller.host = "192.168.1.1"
+        self.controller.slave = 1
+        self.controller.device_id = 1
+        self.controller.enabled = True
+        self.controller.connected = MagicMock(return_value=True)
+        self.hub = MagicMock()
+        self.dr = DataRetrieval(self.hass, self.controller, hub=self.hub)
+
+    async def test_recovery_calls_hub_not_bare_controller(self):
+        bad = 302
+        s_wide = _mock_sensor([301, 302], name="wide")
+        s_ok = _mock_sensor([303], name="ok")
+        group = MagicMock(spec=SolisSensorGroup)
+        group.sensors = [s_wide, s_ok]
+        group.poll_speed = PollSpeed.FAST
+        group.identification = "test"
+        group.start_register = 301
+        group.registrar_count = 3
+
+        async def detailed(start, count, quiet=False):
+            regs = range(start, start + count)
+            if bad in regs:
+                return None, 2
+            return [7] * count, None
+
+        self.controller._async_read_input_register_raw_detailed = AsyncMock(side_effect=detailed)
+
+        async def read_blk(start, count, is_holding):
+            if start == 303 and count == 1:
+                return ([42], None)
+            return (None, 2)
+
+        with (
+            patch.object(self.dr, "_read_register_block_with_exception", new=AsyncMock(side_effect=read_blk)),
+            patch("custom_components.solisconnect.data_retrieval.mark_platform_entities_unavailable_for_base_sensors"),
+        ):
+            await self.dr._recover_sensor_group_after_modbus_failure(group, 301, 3, False, [])
+
+        self.hub.replace_sensor_group.assert_called_once()
+        self.controller.replace_sensor_group.assert_not_called()
+
+
 class TestModbusControllerReplaceGroup(unittest.TestCase):
     def test_replace_sensor_group_preserves_order(self):
         from custom_components.solisconnect.modbus_controller import ModbusController

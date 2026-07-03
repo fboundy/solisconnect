@@ -218,3 +218,49 @@ async def test_write_fallback_requires_healthy_other(hass):
     with pytest.raises(HomeAssistantError, match="no mapping"):
         await hub.async_write_holding_register(43000, 26)
     hub.modbus.async_write_holding_register.assert_not_awaited()
+
+
+def test_replace_sensor_group_applies_to_both_controllers(hass):
+    """Bug #13: a recovery edit applied only to the active controller is lost across a switch."""
+    hub = _hub(hass, PROTO_BOTH_MANUAL)
+    hub.modbus.replace_sensor_group = MagicMock()
+    hub.cloud.replace_sensor_group = MagicMock()
+
+    old_group, new_groups = object(), [object(), object()]
+    hub.replace_sensor_group(old_group, new_groups)
+
+    hub.modbus.replace_sensor_group.assert_called_once_with(old_group, new_groups)
+    hub.cloud.replace_sensor_group.assert_called_once_with(old_group, new_groups)
+
+
+def test_enable_disable_connection_applies_to_both_controllers(hass):
+    """Bug #13: toggling the connection switch must not leave the standby protocol untouched."""
+    hub = _hub(hass, PROTO_BOTH_MANUAL)
+
+    hub.enable_connection()
+    hub.modbus.enable_connection.assert_called_once()
+    hub.cloud.enable_connection.assert_called_once()
+
+    hub.disable_connection()
+    hub.modbus.disable_connection.assert_called_once()
+    hub.cloud.disable_connection.assert_called_once()
+
+
+async def test_health_tick_skips_when_previous_probe_still_running(hass):
+    """Bug #13: overlapping timer fires must not race the in-flight probe's state bookkeeping."""
+    hub = _hub(hass, PROTO_BOTH_FAILOVER, failover_primary=PROTOCOL_MODBUS)
+    modbus_patch, cloud_patch = _patch_retrievals()
+    with modbus_patch as modbus_retrieval, cloud_patch:
+        modbus_retrieval.return_value.async_stop = AsyncMock()
+        await hub.async_start()
+        hub._health_tick_running = True
+        try:
+            hub.modbus.last_modbus_success = datetime.now(UTC) - timedelta(seconds=600)
+            hub._last_switch = datetime.now(UTC) - timedelta(seconds=MIN_DWELL_SECONDS + 1)
+            await hub._health_tick()
+            # The tick returned immediately without evaluating failover at all
+            assert hub.active_protocol == PROTOCOL_MODBUS
+        finally:
+            hub._health_tick_running = False
+
+        await hub.async_stop()

@@ -24,9 +24,13 @@ _MAX_REGISTER_RECOVERY_DEPTH = 24
 
 
 class DataRetrieval:
-    def __init__(self, hass: HomeAssistant, controller: ModbusController):
+    def __init__(self, hass: HomeAssistant, controller: ModbusController, hub=None):
         self._spike_counter = {}
         self.controller: ModbusController = controller
+        # When this retrieval is hub-managed, sensor-group recovery edits are applied through
+        # the hub so they also land on the standby protocol controller (issue #13) instead of
+        # being lost the next time the hub switches protocols.
+        self.hub = hub
         self.hass = hass
         self.poll_lock = asyncio.Lock()
         self.connection_check = False
@@ -137,7 +141,7 @@ class DataRetrieval:
         clusters = cluster_sensors_by_contiguous_registers(remaining)
         new_groups = [SolisSensorGroup.from_sensors(c, sensor_group.poll_speed, sensor_group.identification) for c in clusters]
 
-        self.controller.replace_sensor_group(sensor_group, new_groups)
+        (self.hub or self.controller).replace_sensor_group(sensor_group, new_groups)
 
         disabled_names = ", ".join(s.name for s in disabled_sensors) or "(unknown)"
         _LOGGER.warning(
@@ -413,7 +417,7 @@ class DataRetrieval:
                 total_duration = time.perf_counter() - total_start_time
                 _LOGGER.debug(f"✅ {speed.name} update completed in {total_duration:.4f}s")
         except Exception as e:
-            _LOGGER.debug("exception caught: %s", e)
+            _LOGGER.warning("(%s.%s) Unexpected error during %s poll: %s", self.controller.host, self.controller.slave, speed.name, e, exc_info=True)
         finally:
             del self.poll_updating[speed][group_hash]  # ✅ Reset only this group set
 
