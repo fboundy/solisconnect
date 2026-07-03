@@ -20,7 +20,7 @@ import json
 import logging
 import time
 from datetime import UTC, datetime, timedelta
-from email.utils import formatdate
+from email.utils import formatdate, parsedate_to_datetime
 
 import aiohttp
 
@@ -40,6 +40,9 @@ REQUEST_TIMEOUT_SECONDS = 10
 MIN_REQUEST_SPACING_SECONDS = 1.0
 MAX_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
+# Substrings (matched case-insensitively) in a control-response failure message that
+# suggest the cached CSRF token was rejected server-side rather than the write itself failing.
+AUTH_ERROR_KEYWORDS = ("token", "login", "auth", "unauthoriz")
 
 
 class SolisCloudApiError(Exception):
@@ -116,6 +119,20 @@ class SolisCloudApiClient:
         if elapsed < MIN_REQUEST_SPACING_SECONDS:
             await asyncio.sleep(MIN_REQUEST_SPACING_SECONDS - elapsed)
 
+    @staticmethod
+    def _parse_retry_after(value: str | None) -> float | None:
+        """Parse a Retry-After header: either delay-seconds or an HTTP-date."""
+        if not value:
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            pass
+        try:
+            return max((parsedate_to_datetime(value) - datetime.now(UTC)).total_seconds(), 0.0)
+        except (TypeError, ValueError):
+            return None
+
     async def _post(self, resource: str, params: dict, *, with_token: bool = False, return_full: bool = False) -> dict:
         """Send a signed POST and return the parsed response 'data' payload (or the full payload)."""
         body = self._build_body(params)
@@ -136,12 +153,28 @@ class SolisCloudApiClient:
                     ) as response:
                         self._last_request_monotonic = time.monotonic()
 
-                        if response.status == 408:
-                            raise SolisCloudApiError(
-                                f"SolisCloud rejected the request time on {resource} (HTTP 408): check that the local clock is within 15 minutes of UTC"
-                            )
-                        if response.status == 429:
-                            raise SolisCloudRateLimitError(f"SolisCloud rate limit hit on {resource} (HTTP 429)")
+                        if response.status in (408, 429):
+                            if response.status == 429:
+                                last_error = SolisCloudRateLimitError(f"SolisCloud rate limit hit on {resource} (HTTP 429)")
+                                retry_after = self._parse_retry_after(response.headers.get("Retry-After"))
+                            else:
+                                last_error = SolisCloudApiError(
+                                    f"SolisCloud rejected the request time on {resource} (HTTP 408): check that the local clock is within 15 minutes of UTC"
+                                )
+                                retry_after = None
+                            if attempt < MAX_ATTEMPTS:
+                                delay = retry_after if retry_after is not None else RETRY_BACKOFF_SECONDS * attempt
+                                _LOGGER.debug(
+                                    "SolisCloud request to %s got HTTP %s (attempt %s/%s), retrying in %.1fs",
+                                    resource,
+                                    response.status,
+                                    attempt,
+                                    MAX_ATTEMPTS,
+                                    delay,
+                                )
+                                await asyncio.sleep(delay)
+                                continue
+                            break
                         response.raise_for_status()
 
                         payload = await response.json()
@@ -271,6 +304,11 @@ class SolisCloudApiClient:
                     return failure
         return None
 
+    @staticmethod
+    def _looks_like_auth_error(message: str) -> bool:
+        lowered = message.lower()
+        return any(keyword in lowered for keyword in AUTH_ERROR_KEYWORDS)
+
     async def async_control(self, inverter_sn: str, cid: int, value: str, old_value: str | None = None) -> bool:
         """Write a control register (CID) value; returns True on success."""
         await self.async_ensure_token()
@@ -279,6 +317,19 @@ class SolisCloudApiClient:
             params["yuanzhi"] = str(old_value)
         data = await self._post(RESOURCE_CONTROL, params, with_token=True)
         failure = self._control_failure(data)
-        if failure:
+        if not failure:
+            return True
+
+        if not self.has_account_credentials or not self._looks_like_auth_error(failure):
             raise SolisCloudApiError(f"SolisCloud control for cid {cid} failed: {failure}")
+
+        # The cached token may have been invalidated server-side; force a fresh login and retry once.
+        _LOGGER.debug("SolisCloud control for cid %s looks auth-related (%s); forcing re-login and retrying once", cid, failure)
+        self._token = None
+        self._token_timestamp = datetime(1970, 1, 1, tzinfo=UTC)
+        await self.async_ensure_token()
+        data = await self._post(RESOURCE_CONTROL, params, with_token=True)
+        failure = self._control_failure(data)
+        if failure:
+            raise SolisCloudApiError(f"SolisCloud control for cid {cid} failed after re-login: {failure}")
         return True

@@ -16,6 +16,7 @@ from custom_components.solisconnect.cloud.api_client import (
     RESOURCE_INVERTER_DETAIL,
     RESOURCE_INVERTER_LIST,
     RESOURCE_LOGIN,
+    RETRY_BACKOFF_SECONDS,
     SolisCloudApiClient,
     SolisCloudApiError,
     SolisCloudAuthError,
@@ -135,11 +136,52 @@ async def test_gives_up_after_max_attempts(aioclient_mock: AiohttpClientMocker, 
     assert aioclient_mock.call_count == MAX_ATTEMPTS
 
 
-async def test_408_mentions_clock_skew(aioclient_mock: AiohttpClientMocker, client_factory):
+async def test_408_retries_then_raises_mentioning_clock_skew(aioclient_mock: AiohttpClientMocker, client_factory):
     aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_AT_READ}", status=408, json={})
     client = client_factory()
-    with pytest.raises(SolisCloudApiError, match="clock"):
+    with patch("custom_components.solisconnect.cloud.api_client.asyncio.sleep"), pytest.raises(SolisCloudApiError, match="clock"):
         await client.async_at_read(SN, 636)
+    # A persistent 408 (clock skew) is still retried like any other transient status, up to MAX_ATTEMPTS.
+    assert aioclient_mock.call_count == MAX_ATTEMPTS
+
+
+async def test_429_retries_and_honors_retry_after(aioclient_mock: AiohttpClientMocker, client_factory):
+    responses = [
+        {"status": 429, "json": {}, "headers": {"Retry-After": "5"}},
+        {"status": 200, "json": {"code": "0", "data": {"msg": "35"}}, "headers": None},
+    ]
+
+    async def _respond(method, url, data):
+        resp = responses.pop(0)
+        return AiohttpClientMockResponse(method=method, url=url, status=resp["status"], json=resp["json"], headers=resp["headers"])
+
+    aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_AT_READ}", side_effect=_respond)
+    client = client_factory()
+    # The inter-request spacing wait also calls asyncio.sleep, so check the specific
+    # Retry-After-derived delay was used rather than asserting a single total call.
+    with patch("custom_components.solisconnect.cloud.api_client.asyncio.sleep") as mock_sleep:
+        value = await client.async_at_read(SN, 636)
+    assert value == "35"
+    assert aioclient_mock.call_count == 2
+    assert any(call.args == (5.0,) for call in mock_sleep.call_args_list)
+
+
+async def test_429_without_retry_after_uses_backoff(aioclient_mock: AiohttpClientMocker, client_factory):
+    responses = [
+        {"status": 429, "json": {}},
+        {"status": 200, "json": {"code": "0", "data": {"msg": "35"}}},
+    ]
+
+    async def _respond(method, url, data):
+        resp = responses.pop(0)
+        return AiohttpClientMockResponse(method=method, url=url, status=resp["status"], json=resp["json"])
+
+    aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_AT_READ}", side_effect=_respond)
+    client = client_factory()
+    with patch("custom_components.solisconnect.cloud.api_client.asyncio.sleep") as mock_sleep:
+        value = await client.async_at_read(SN, 636)
+    assert value == "35"
+    assert any(call.args == (RETRY_BACKOFF_SECONDS * 1,) for call in mock_sleep.call_args_list)
 
 
 async def test_login_caches_token_and_attaches_it(aioclient_mock: AiohttpClientMocker, client_factory):
@@ -217,6 +259,41 @@ async def test_control_inner_failure_raises(aioclient_mock: AiohttpClientMocker,
     client = client_factory()
     with pytest.raises(SolisCloudApiError, match="rejected"):
         await client.async_control(SN, 636, "33")
+
+
+async def test_control_reauth_on_auth_shaped_failure(aioclient_mock: AiohttpClientMocker, client_factory):
+    """A control failure whose message looks token/auth-related forces one re-login + retry."""
+    aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_LOGIN}", json={"code": "0", "data": {"csrfToken": "tok123"}})
+
+    control_responses = [
+        {"code": "0", "data": {"resultCode": "1001", "msg": "token expired"}},
+        {"code": "0", "data": {}},
+    ]
+
+    async def _respond(method, url, data):
+        return AiohttpClientMockResponse(method=method, url=url, status=200, json=control_responses.pop(0))
+
+    aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_CONTROL}", side_effect=_respond)
+
+    client = client_factory(username="user@example.com", password="hunter2")
+    assert await client.async_control(SN, 636, "33") is True
+
+    login_calls = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith(RESOURCE_LOGIN)]
+    control_calls = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith(RESOURCE_CONTROL)]
+    assert len(login_calls) == 2  # initial login + forced re-login after the auth-shaped failure
+    assert len(control_calls) == 2
+
+
+async def test_control_non_auth_failure_does_not_force_reauth(aioclient_mock: AiohttpClientMocker, client_factory):
+    aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_LOGIN}", json={"code": "0", "data": {"csrfToken": "tok123"}})
+    aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_CONTROL}", json={"code": "0", "data": {"resultCode": "1001", "msg": "rejected"}})
+
+    client = client_factory(username="user@example.com", password="hunter2")
+    with pytest.raises(SolisCloudApiError, match="rejected"):
+        await client.async_control(SN, 636, "33")
+
+    login_calls = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith(RESOURCE_LOGIN)]
+    assert len(login_calls) == 1  # no forced re-login for a non-auth-shaped failure
 
 
 async def test_password_stored_only_as_md5(client_factory):
