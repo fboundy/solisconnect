@@ -1,98 +1,97 @@
 name: Release
 
 on:
+  pull_request:
+    types: [closed]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version part to bump"
+        required: true
+        type: choice
+        options: [patch, minor, major]
+        default: patch
 
 env:
-  COMPONENT_NAME: solis_modbus
+  COMPONENT_NAME: solisconnect
 
 jobs:
   release:
     name: Prepare release
+    # Only release for: a manual run, or a merged (not just closed) PR from patch/dev into main.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       contains(fromJson('["patch", "dev"]'), github.event.pull_request.head.ref))
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
+          # A PAT (not the default GITHUB_TOKEN) is required: main is protected and only an
+          # admin's own credentials can push directly to it, and only a PAT-authenticated push
+          # will trigger the branch's required status-check workflows on the bump commit.
+          token: ${{ secrets.PAT }}
 
-      - name: Install jq
-        run: sudo apt-get install jq
-
-      - name: Install Python semver
-        run: pip install semver
-
-      - name: Get latest tag or fail
-        id: get-latest-tag
+      - name: Install jq and semver
         run: |
-          latest_tag=$(git for-each-ref --sort=version:refname --format '%(refname)' refs/tags/ | grep -v 'latest' | tail -1 | sed 's/^refs\/tags\///; s/^v//')
-          if [ -z "$latest_tag" ]; then
-            echo "No tags found for the commit."
-            exit 1
-          fi
-          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+          sudo apt-get install -y jq
+          pip install semver
 
-      - name: Get current version from manifest.json
-        id: get-version
+      - name: Determine bump type
+        # Values are passed via env, not interpolated into the script, so an attacker-controlled
+        # branch name (e.g. a fork PR's head ref) can't inject shell commands here.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BUMP_INPUT: ${{ inputs.bump }}
         run: |
-          current_version=$(cat "${{ github.workspace }}/custom_components/${{ env.COMPONENT_NAME }}/manifest.json" | jq -r '.version')
-          echo "version=$current_version" >> $GITHUB_ENV
-
-      - name: Check if version is higher and bump if needed
-        id: check-version
-        run: |
-          latest="${{ env.latest_tag }}"
-          current="${{ env.version }}"
-
-          echo "Current version: $current"
-          echo "Latest tag: $latest"
-
-          # Check if latest tag is a valid SemVer string
-          if ! python -c "import semver; semver.VersionInfo.parse('$latest')" > /dev/null 2>&1; then
-            echo "Latest tag '$latest' is not a valid SemVer version, treating it as the current version."
-            latest=$current  # Treat invalid tag as current version
-          fi
-
-          # Check if current version is higher than the latest tag (which is now set to current if invalid)
-          is_higher=$(python -c "import semver; print(semver.compare('$current', '$latest') > 0)")
-
-          if [ "$is_higher" != "True" ]; then
-            echo "The version is not higher. Bumping patch version..."
-            bumped=$(python -c "import semver; print(semver.bump_patch('$latest'))")
-            echo "New version: $bumped"
-            jq ".version = \"$bumped\"" "${{ github.workspace }}/custom_components/${{ env.COMPONENT_NAME }}/manifest.json" > package.tmp.json && mv package.tmp.json "${{ github.workspace }}/custom_components/${{ env.COMPONENT_NAME }}/manifest.json"
-            echo "version=$bumped" >> $GITHUB_ENV
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            bump="$BUMP_INPUT"
+          elif [ "$HEAD_REF" = "dev" ]; then
+            bump="minor"
           else
-            echo "version=$current" >> $GITHUB_ENV
+            bump="patch"
           fi
+          echo "Bump type: $bump"
+          echo "bump=$bump" >> "$GITHUB_ENV"
 
-          echo "is_higher_version=true" >> $GITHUB_ENV
+      - name: Bump version in manifest.json
+        run: |
+          manifest="custom_components/${{ env.COMPONENT_NAME }}/manifest.json"
+          current=$(jq -r '.version' "$manifest")
+          new=$(python -c "import semver; print(semver.bump_${{ env.bump }}('$current'))")
+          echo "Bumping $current -> $new (${{ env.bump }})"
+          jq ".version = \"$new\"" "$manifest" > package.tmp.json && mv package.tmp.json "$manifest"
+          echo "version=$new" >> "$GITHUB_ENV"
 
       - name: Commit and push version bump
-        if: env.is_higher_version == 'true'
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add custom_components/${{ env.COMPONENT_NAME }}/manifest.json
-          git diff --exit-code || (git commit -m "chore: bump version to v${{ env.version }}" && git push)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "custom_components/${{ env.COMPONENT_NAME }}/manifest.json"
+          git commit -m "chore: release v${{ env.version }}"
+          git push origin HEAD:main
 
       - name: Zip ${{ env.COMPONENT_NAME }} dir
         run: |
-          cd "${{ github.workspace }}/custom_components/${{ env.COMPONENT_NAME }}"
-          zip ${{ env.COMPONENT_NAME }}.zip -r ./
+          cd "custom_components/${{ env.COMPONENT_NAME }}"
+          zip "${{ env.COMPONENT_NAME }}.zip" -r ./
 
       - name: Upload zip to release
-        if: env.is_higher_version == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ github.workspace }}/custom_components/${{ env.COMPONENT_NAME }}/${{ env.COMPONENT_NAME }}.zip
+          files: custom_components/${{ env.COMPONENT_NAME }}/${{ env.COMPONENT_NAME }}.zip
           tag_name: v${{ env.version }}
           name: v${{ env.version }}
           token: ${{ secrets.PAT }}
           generate_release_notes: true
 
       - name: 🏷️ Update latest tag
-        if: env.is_higher_version == 'true'
         uses: EndBug/latest-tag@latest
+        with:
+          github-token: ${{ secrets.PAT }}
