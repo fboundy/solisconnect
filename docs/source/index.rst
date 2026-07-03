@@ -16,4 +16,5 @@ Table of Contents
    :caption: Advanced
 
    protocols.md
+   tou.md
    migration.md
