@@ -8,6 +8,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from custom_components.solisconnect.const import REGISTER, VALUE
 from custom_components.solisconnect.data.enums import InverterType, PollSpeed
 from custom_components.solisconnect.helpers import cache_get, is_correct_controller, register_update_signal
+from custom_components.solisconnect.sensors.entity_category import entity_category_for_sensor_category
 from custom_components.solisconnect.sensors.solis_base_sensor import SolisBaseSensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class SolisSensor(RestoreSensor, SensorEntity):
         self._attr_native_unit_of_measurement = sensor.unit_of_measurement
         self._attr_available = not sensor.hidden and sensor.enabled
         self._attr_suggested_display_precision = self.decimal_count(sensor.multiplier)
+        self._attr_entity_category = entity_category_for_sensor_category(getattr(sensor, "category", None))
 
         self.is_added_to_hass = False
         self._state = None

@@ -5,6 +5,11 @@ from custom_components.solisconnect.data.solis_config import (
     InverterOptions,
     inverter_options_from_config,
 )
+from custom_components.solisconnect.sensor_data.switch_sensors import get_switch_sensors
+
+
+def _switch_names(inverter_config: InverterConfig) -> set[str]:
+    return {entity["name"] for group in get_switch_sensors(inverter_config) for entity in group["entities"]}
 
 
 def test_ac_coupling_feature_enabled():
@@ -20,6 +25,21 @@ def test_ac_coupling_feature_disabled_by_default():
     config = InverterConfig(model="S6-EH1P", wattage=[8000], phases=1, type=InverterType.HYBRID)
 
     assert InverterFeature.AC_COUPLING not in config.features
+
+
+def test_generator_feature_disabled_by_default():
+    """Generator controls must be opt-in, matching the config-flow default."""
+    config = InverterConfig(model="S6-EH1P", wattage=[8000], phases=1, type=InverterType.HYBRID)
+
+    assert InverterFeature.GENERATOR not in config.features
+
+
+def test_inverter_options_generator_default_is_false():
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+
+    options = inverter_options_from_config({}, template)
+
+    assert options.generator is False
 
 
 def test_clone_applies_user_options_and_leaves_templates_untouched():
@@ -53,6 +73,40 @@ def test_hybrid_sensors_ac_coupling_requirement():
     assert len(ac_coupling_groups) > 0
     for group in ac_coupling_groups:
         assert InverterFeature.AC_COUPLING in group["feature_requirement"]
+
+
+def test_generator_switches_hidden_without_generator_feature():
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+    config = template.clone_with_options(InverterOptions(generator=False, ac_coupling=False), "S2_WL_ST")
+
+    names = _switch_names(config)
+
+    assert all("Generator" not in name for name in names)
+    assert "AC Coupling Position (off = GEN port, on = Backup port)" not in names
+    assert "AC Coupling Enable" not in names
+
+
+def test_generator_switches_enabled_with_generator_feature():
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+    config = template.clone_with_options(InverterOptions(generator=True, ac_coupling=False), "S2_WL_ST")
+
+    names = _switch_names(config)
+
+    assert "With Generator" in names
+    assert "Generator Charge Enable" in names
+    assert "Force Start Generator" in names
+    assert "AC Coupling Enable" not in names
+
+
+def test_ac_coupling_switches_enabled_with_ac_coupling_feature():
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+    config = template.clone_with_options(InverterOptions(generator=False, ac_coupling=True), "S2_WL_ST")
+
+    names = _switch_names(config)
+
+    assert "AC Coupling Position (off = GEN port, on = Backup port)" in names
+    assert "AC Coupling Enable" in names
+    assert "With Generator" not in names
 
 
 def test_parallel_feature_disabled_by_default():

@@ -4,6 +4,7 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from custom_components.solisconnect import ModbusController
@@ -36,6 +37,7 @@ class SolisBinaryEntity(RestoreEntity, SwitchEntity):
         self._attr_unique_id = unique_id_generator_binary(modbus_controller, self._register, self._bit_position, self._on_value)
         self._attr_name = entity_definition["name"]
         self._attr_available = False
+        self._attr_entity_category = EntityCategory.CONFIG
 
     async def async_added_to_hass(self) -> None:
         """Called when entity is added to HA."""

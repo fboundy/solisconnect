@@ -6,6 +6,7 @@ from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import EntityCategory
 
 from custom_components.solisconnect import ModbusController
 from custom_components.solisconnect.const import DOMAIN, REGISTER, TIME_ENTITIES, VALUE
@@ -54,6 +55,7 @@ class SolisTimeEntity(RestoreSensor, TimeEntity):
         self._attr_has_entity_name = True
         self._attr_available = True
         self._attr_device_class = entity_definition.get("device_class", None)
+        self._attr_entity_category = EntityCategory.CONFIG
         self._attr_available = True
 
         self._received_values = {}
