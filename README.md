@@ -294,31 +294,27 @@ Card inspiration from https://github.com/slipx06/Sunsynk-Home-Assistant-Dash
 **Inverters Tested**
 Solis and equivalent Axitec, Zonneplan inverters
 
-- **S6-EH3P**
--   - S6-EH3P20K-H (https://github.com/fboundy/solisconnect/issues/93)
--   - S6-EH3P15K-H
--   - S6-EH3P(12-20)K-H
--   - S6-EH1P6K-L-PRO
--   - S6-EH1P6K-L-PLUS
--   - S6-EH3P10K-H-ZP (https://github.com/fboundy/solisconnect/issues/191)
--   - S6-EH3P10K-H-EU (https://github.com/fboundy/solisconnect/issues/202)
-- **S6-GR1P**
--   - S6-GR1P4K (https://github.com/fboundy/solisconnect/issues/84)
-- **S5-EH1**
--   - S5-EH1(3-6)K-L (https://github.com/fboundy/solisconnect/issues/89)
--   - S5-EH1P5K-L (https://github.com/fboundy/solisconnect/issues/94)
--   - S5-EH1P6K-L (https://github.com/fboundy/solisconnect/issues/94#issuecomment-2656512651)
-- **S5-GC**
--   - S5-GC30K (https://github.com/fboundy/solisconnect/issues/173)
--   - S5-GC60K (https://github.com/fboundy/solisconnect/issues/180#issuecomment-2887414843)
-- **RAI-\***
--   - RAI-3K-48ES-5G (https://github.com/fboundy/solisconnect/issues/174)
-- **RHI-\***
--   - RHI-3K-48ES-5G (https://github.com/fboundy/solisconnect/issues/97#issuecomment-2639807764)
-- **3P(3-20)K-4G**
--   - 3P6K-4G (https://github.com/fboundy/solisconnect/issues/210)
-- **1P(2.5-6)K-4G**
--   - https://github.com/fboundy/solisconnect/issues/230
+Protocol verification status: ⚪ = not yet verified. The columns will be filled in as test reports come in for each protocol mode.
+
+| Type          | Inverter                                                                                          | Modbus | Cloud | Combined |
+| ------------- | ------------------------------------------------------------------------------------------------- | :----: | :---: | :------: |
+| S6-EH3P       | [S6-EH3P20K-H](https://github.com/fboundy/solisconnect/issues/93)                                  |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH3P15K-H                                                                                       |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH3P(12-20)K-H                                                                                  |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH1P6K-L-PRO                                                                                    |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH1P6K-L-PLUS                                                                                   |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | [S6-EH3P10K-H-ZP](https://github.com/fboundy/solisconnect/issues/191)                              |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | [S6-EH3P10K-H-EU](https://github.com/fboundy/solisconnect/issues/202)                              |   ⚪   |  ⚪   |    ⚪    |
+| S6-GR1P       | [S6-GR1P4K](https://github.com/fboundy/solisconnect/issues/84)                                     |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | [S5-EH1(3-6)K-L](https://github.com/fboundy/solisconnect/issues/89)                                |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | [S5-EH1P5K-L](https://github.com/fboundy/solisconnect/issues/94)                                   |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | [S5-EH1P6K-L](https://github.com/fboundy/solisconnect/issues/94#issuecomment-2656512651)           |   ⚪   |  ⚪   |    ⚪    |
+| S5-GC         | [S5-GC30K](https://github.com/fboundy/solisconnect/issues/173)                                     |   ⚪   |  ⚪   |    ⚪    |
+| S5-GC         | [S5-GC60K](https://github.com/fboundy/solisconnect/issues/180#issuecomment-2887414843)             |   ⚪   |  ⚪   |    ⚪    |
+| RAI-\*        | [RAI-3K-48ES-5G](https://github.com/fboundy/solisconnect/issues/174)                               |   ⚪   |  ⚪   |    ⚪    |
+| RHI-\*        | [RHI-3K-48ES-5G](https://github.com/fboundy/solisconnect/issues/97#issuecomment-2639807764)        |   ⚪   |  ⚪   |    ⚪    |
+| 3P(3-20)K-4G  | [3P6K-4G](https://github.com/fboundy/solisconnect/issues/210)                                      |   ⚪   |  ⚪   |    ⚪    |
+| 1P(2.5-6)K-4G | [1P(2.5-6)K-4G](https://github.com/fboundy/solisconnect/issues/230)                                |   ⚪   |  ⚪   |    ⚪    |
 
 **Wifi Dongles Tested**
 
