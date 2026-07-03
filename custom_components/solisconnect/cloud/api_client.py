@@ -244,12 +244,41 @@ class SolisCloudApiClient:
             _LOGGER.warning("SolisCloud atReadBatch returned no parseable records; raw payload: %s", data)
         return results
 
+    @staticmethod
+    def _control_failure(payload) -> str | None:
+        """Return an embedded control failure message from a successful HTTP/API payload."""
+        if isinstance(payload, list):
+            for item in payload:
+                failure = SolisCloudApiClient._control_failure(item)
+                if failure:
+                    return failure
+            return None
+        if not isinstance(payload, dict):
+            return None
+
+        code = payload.get("code") or payload.get("resultCode") or payload.get("errorCode")
+        if code not in (None, "", "0", 0):
+            return str(payload.get("msg") or payload.get("message") or f"code={code}")
+
+        for key in ("success", "result", "isSuccess"):
+            if payload.get(key) is False:
+                return str(payload.get("msg") or payload.get("message") or f"{key}=false")
+
+        for key in ("data", "result", "response", "responses", "records", "list"):
+            if key in payload:
+                failure = SolisCloudApiClient._control_failure(payload[key])
+                if failure:
+                    return failure
+        return None
+
     async def async_control(self, inverter_sn: str, cid: int, value: str, old_value: str | None = None) -> bool:
         """Write a control register (CID) value; returns True on success."""
         await self.async_ensure_token()
         params = {"inverterSn": str(inverter_sn), "cid": str(cid), "value": str(value)}
         if old_value is not None:
             params["yuanzhi"] = str(old_value)
-        # _post raises on any non-zero response code, so reaching here means success.
-        await self._post(RESOURCE_CONTROL, params, with_token=True)
+        data = await self._post(RESOURCE_CONTROL, params, with_token=True)
+        failure = self._control_failure(data)
+        if failure:
+            raise SolisCloudApiError(f"SolisCloud control for cid {cid} failed: {failure}")
         return True

@@ -10,12 +10,14 @@ from . import ModbusController
 from .const import (
     CONF_BAUDRATE,
     CONF_BYTESIZE,
+    CONF_CLOUD_DETECTED_MODEL,
     CONF_CLOUD_INVERTER_ID,
     CONF_CLOUD_KEY_ID,
     CONF_CLOUD_KEY_SECRET,
     CONF_CLOUD_PASSWORD,
     CONF_CLOUD_PLANT_ID,
     CONF_CLOUD_POLL_INTERVAL,
+    CONF_CLOUD_PRODUCT_MODEL,
     CONF_CLOUD_USERNAME,
     CONF_CONNECTION_TYPE,
     CONF_FAILOVER_PRIMARY,
@@ -185,6 +187,8 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._cloud_data = None
         self._resolved_serial = None
         self._resolved_cloud_id = None
+        self._cloud_product_model = None
+        self._cloud_detected_model = None
 
     async def async_step_user(self, user_input=None):
         """Handle initial step - ask for connection type."""
@@ -266,21 +270,41 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._both_mode:
                 # The dual entry is keyed by the Modbus serial; the cloud plant must contain it
                 user_input = {**user_input, CONF_INVERTER_SERIAL: self._modbus_data[CONF_INVERTER_SERIAL]}
-            serial, inverter_id, error = await self._validate_cloud_config(user_input)
+            serial, inverter_id, detected_model, product_model, error = await self._validate_cloud_config(user_input)
             if error:
                 errors["base"] = error
             elif self._both_mode:
+                if detected_model and self._modbus_data.get("model") != detected_model:
+                    _LOGGER.info(
+                        "SolisCloud model metadata identifies %s; overriding selected model %s for serial %s",
+                        detected_model,
+                        self._modbus_data.get("model"),
+                        serial,
+                    )
+                    self._modbus_data["model"] = detected_model
                 self._cloud_data = user_input
                 self._resolved_serial = serial
                 self._resolved_cloud_id = inverter_id
+                self._cloud_product_model = product_model
+                self._cloud_detected_model = detected_model
                 return await self.async_step_dual_mode()
             else:
                 await self.async_set_unique_id(serial)
                 self._abort_if_unique_id_configured()
+                if detected_model and user_input.get("model") != detected_model:
+                    _LOGGER.info(
+                        "SolisCloud model metadata identifies %s; overriding selected model %s for serial %s",
+                        detected_model,
+                        user_input.get("model"),
+                        serial,
+                    )
                 data = {
                     **user_input,
+                    "model": detected_model or user_input.get("model"),
                     CONF_INVERTER_SERIAL: serial,
                     CONF_CLOUD_INVERTER_ID: inverter_id,
+                    CONF_CLOUD_PRODUCT_MODEL: product_model,
+                    CONF_CLOUD_DETECTED_MODEL: detected_model,
                     CONF_CONNECTION_TYPE: CONN_TYPE_CLOUD,
                     CONF_PROTOCOL_MODE: PROTO_CLOUD_ONLY,
                 }
@@ -325,6 +349,8 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 **self._cloud_data,
                 CONF_INVERTER_SERIAL: serial,
                 CONF_CLOUD_INVERTER_ID: self._resolved_cloud_id,
+                CONF_CLOUD_PRODUCT_MODEL: self._cloud_product_model,
+                CONF_CLOUD_DETECTED_MODEL: self._cloud_detected_model,
                 CONF_PROTOCOL_MODE: protocol_mode,
                 CONF_FAILOVER_PRIMARY: primary,
             }
@@ -335,15 +361,16 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({vol.Required("dual_mode", default="failover_modbus"): vol.In(DUAL_MODE_OPTIONS)}),
         )
 
-    async def _validate_cloud_config(self, user_input) -> tuple[str | None, str | None, str | None]:
+    async def _validate_cloud_config(self, user_input) -> tuple[str | None, str | None, str | None, str | None, str | None]:
         """Check credentials against the SolisCloud API and resolve the inverter serial + cloud id.
 
-        Returns (serial, inverter_id, None) on success or (None, None, error_message) on failure.
+        Returns (serial, inverter_id, detected_model, product_model, None) on success.
         The cloud id is required alongside the serial for inverterDetail reads.
         """
         from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
         from .cloud.api_client import SolisCloudApiClient, SolisCloudApiError
+        from .cloud.model_detection import cloud_model_metadata, infer_model_from_cloud_record
 
         client = SolisCloudApiClient(
             session=async_get_clientsession(self.hass),
@@ -357,21 +384,26 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             records = await client.async_inverter_list(user_input[CONF_CLOUD_PLANT_ID].strip())
         except SolisCloudApiError as error:
             _LOGGER.warning("SolisCloud validation failed: %s", error)
-            return None, None, "Cannot reach the SolisCloud API with these credentials. Check the key id/secret and plant id."
+            return None, None, None, None, "Cannot reach the SolisCloud API with these credentials. Check the key id/secret and plant id."
 
-        by_serial = {str(rec["sn"]).upper(): str(rec.get("id") or "") for rec in records if rec.get("sn")}
+        by_serial = {str(rec["sn"]).upper(): rec for rec in records if rec.get("sn")}
         if not by_serial:
-            return None, None, "No inverters found for this plant id."
+            return None, None, None, None, "No inverters found for this plant id."
 
         wanted = (user_input.get(CONF_INVERTER_SERIAL) or "").strip().upper()
         if wanted:
             if wanted not in by_serial:
-                return None, None, f"Inverter serial {wanted} not found in this plant (found: {', '.join(by_serial)})."
-            return wanted, by_serial[wanted] or None, None
+                return None, None, None, None, f"Inverter serial {wanted} not found in this plant (found: {', '.join(by_serial)})."
+            record = by_serial[wanted]
+            metadata = cloud_model_metadata(record)
+            product_model = metadata.get("productModel") or metadata.get("model")
+            return wanted, str(record.get("id") or "") or None, infer_model_from_cloud_record(record), product_model, None
         if len(by_serial) == 1:
-            serial, inverter_id = next(iter(by_serial.items()))
-            return serial, inverter_id or None, None
-        return None, None, f"This plant has multiple inverters ({', '.join(by_serial)}); please enter the serial of the one to add."
+            serial, record = next(iter(by_serial.items()))
+            metadata = cloud_model_metadata(record)
+            product_model = metadata.get("productModel") or metadata.get("model")
+            return serial, str(record.get("id") or "") or None, infer_model_from_cloud_record(record), product_model, None
+        return None, None, None, None, f"This plant has multiple inverters ({', '.join(by_serial)}); please enter the serial of the one to add."
 
     async def async_step_reconfigure(self, user_input=None):
         """Handle reconfiguration."""
@@ -419,17 +451,27 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
         if user_input is not None:
-            serial, inverter_id, error = await self._validate_cloud_config(user_input)
+            serial, inverter_id, detected_model, product_model, error = await self._validate_cloud_config(user_input)
             if error:
                 errors["base"] = error
             elif serial != entry.unique_id:
                 errors["base"] = f"Serial {serial} does not match this entry ({entry.unique_id}). Add a new entry for a different inverter."
             else:
+                if detected_model and user_input.get("model") != detected_model:
+                    _LOGGER.info(
+                        "SolisCloud model metadata identifies %s; overriding selected model %s for serial %s",
+                        detected_model,
+                        user_input.get("model"),
+                        serial,
+                    )
                 data = {
                     **entry.data,
                     **user_input,
+                    "model": detected_model or user_input.get("model"),
                     CONF_INVERTER_SERIAL: serial,
                     CONF_CLOUD_INVERTER_ID: inverter_id,
+                    CONF_CLOUD_PRODUCT_MODEL: product_model,
+                    CONF_CLOUD_DETECTED_MODEL: detected_model,
                 }
                 return self.async_update_reload_and_abort(entry, data=data)
 

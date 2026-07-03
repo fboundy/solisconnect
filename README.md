@@ -42,6 +42,18 @@ Whilst the solis inverters do provide total sensors for today, yesterday, month 
 **Connection Type**:
 - **TCP (WiFi Dongle)**: Use for Data Logging Sticks (DLS) or WiFi dongles. Requires IP and Port (Default 502).
 - **Serial (RS485)**: Use for direct USB-RS485 connection. Requires Serial Port path.
+- **SolisCloud API**: Uses SolisCloud API key credentials. Polling is slower than local Modbus, but works when local Modbus is unavailable.
+- **Modbus + SolisCloud**: Creates one shared device/entity set with either automatic failover or a manual active-protocol selector.
+
+### Protocol Support
+| Mode | Sensor polling | Control writes | Notes |
+| --- | --- | --- | --- |
+| TCP/Serial Modbus | Full local register set | Full mapped register writes | Fastest and preferred where local access is reliable. |
+| SolisCloud API | Mapped cloud detail fields and verified control CIDs | Verified CIDs only: storage mode, backup SOC, over-discharge SOC, force-charge SOC, feed-in limit | Cloud data updates every few minutes and unmapped cloud-only sensors are marked unavailable. |
+| Modbus + SolisCloud failover | One protocol polls at a time; automatic switch on health loss | Active protocol first, then healthy backup where possible | Primary can be Modbus or cloud. |
+| Modbus + SolisCloud manual | One protocol polls at a time, selected by the Active Protocol entity | Active protocol first, then healthy backup where possible | Useful when maintenance or network conditions make one transport preferable. |
+
+Cloud setup derives the closest supported inverter model from SolisCloud metadata where possible. If SolisCloud identifies the model, that value is used to avoid choosing a sensor map that does not match the inverter.
 
 **Inverter Serial**: (Required)
 - Enter your inverter's serial number. This is now **mandatory** for generating unique entity IDs and ensuring configuration stability.

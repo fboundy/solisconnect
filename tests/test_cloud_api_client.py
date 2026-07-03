@@ -212,6 +212,13 @@ async def test_control_sends_value_and_old_value(aioclient_mock: AiohttpClientMo
     assert sent == {"inverterSn": SN, "cid": "636", "value": "33", "yuanzhi": "35"}
 
 
+async def test_control_inner_failure_raises(aioclient_mock: AiohttpClientMocker, client_factory):
+    aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_CONTROL}", json={"code": "0", "data": {"resultCode": "1001", "msg": "rejected"}})
+    client = client_factory()
+    with pytest.raises(SolisCloudApiError, match="rejected"):
+        await client.async_control(SN, 636, "33")
+
+
 async def test_password_stored_only_as_md5(client_factory):
     client = client_factory(username="u", password="hunter2")
     assert not hasattr(client, "_password")

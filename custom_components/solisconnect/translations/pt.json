@@ -62,6 +62,62 @@
           "has_hv_battery": "Has HV Battery Storage (100v+)",
           "has_generator": "Has Generator"
         }
+      },
+      "both_link": {
+        "title": "Modbus Connection Type",
+        "description": "How is the inverter's Modbus link connected? SolisCloud credentials come next.",
+        "data": {
+          "connection_type": "Modbus Connection Type"
+        }
+      },
+      "dual_mode": {
+        "title": "Dual-Protocol Behaviour",
+        "description": "Choose how the two protocols share the work. Only one protocol polls at a time; the other stays on standby.",
+        "data": {
+          "dual_mode": "Mode"
+        }
+      },
+      "cloud": {
+        "title": "SolisCloud API Configuration",
+        "description": "Enter your SolisCloud API credentials. The API key id/secret come from the SolisCloud portal (API management); username/password are only needed later for cloud control writes. Data updates every few minutes — slower than a local Modbus connection.",
+        "data": {
+          "cloud_key_id": "API Key ID",
+          "cloud_key_secret": "API Key Secret",
+          "cloud_plant_id": "Plant / Station ID",
+          "cloud_username": "SolisCloud Username (optional, for control)",
+          "cloud_password": "SolisCloud Password (optional, for control)",
+          "inverter_serial": "Inverter Serial (leave blank to auto-detect)",
+          "cloud_poll_interval": "Poll Interval (seconds)",
+          "model": "Inverter Model",
+          "has_v2": "Updated to V2 Firmware",
+          "has_pv": "Has PV (Solar Panels)",
+          "has_ac_coupling": "Has AC Coupling",
+          "has_parallel": "Parallel inverter operation (multiple units)",
+          "has_battery": "Has Battery Storage",
+          "has_hv_battery": "Has HV Battery Storage (100v+)",
+          "has_generator": "Has Generator"
+        }
+      },
+      "reconfigure_cloud": {
+        "title": "Reconfigure SolisCloud Connection",
+        "description": "Update the SolisCloud API settings for this inverter.",
+        "data": {
+          "cloud_key_id": "API Key ID",
+          "cloud_key_secret": "API Key Secret",
+          "cloud_plant_id": "Plant / Station ID",
+          "cloud_username": "SolisCloud Username (optional, for control)",
+          "cloud_password": "SolisCloud Password (optional, for control)",
+          "inverter_serial": "Inverter Serial",
+          "cloud_poll_interval": "Poll Interval (seconds)",
+          "model": "Inverter Model",
+          "has_v2": "Updated to V2 Firmware",
+          "has_pv": "Has PV (Solar Panels)",
+          "has_ac_coupling": "Has AC Coupling",
+          "has_parallel": "Parallel inverter operation (multiple units)",
+          "has_battery": "Has Battery Storage",
+          "has_hv_battery": "Has HV Battery Storage (100v+)",
+          "has_generator": "Has Generator"
+        }
       }
     },
     "error": {

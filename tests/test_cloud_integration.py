@@ -8,11 +8,13 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.solisconnect.const import (
+    CONF_CLOUD_DETECTED_MODEL,
     CONF_CLOUD_INVERTER_ID,
     CONF_CLOUD_KEY_ID,
     CONF_CLOUD_KEY_SECRET,
     CONF_CLOUD_PASSWORD,
     CONF_CLOUD_PLANT_ID,
+    CONF_CLOUD_PRODUCT_MODEL,
     CONF_CLOUD_USERNAME,
     CONF_CONNECTION_TYPE,
     CONF_INVERTER_SERIAL,
@@ -222,7 +224,7 @@ async def test_migration_v3_to_v4_sets_modbus_only(hass: HomeAssistant):
 async def test_config_flow_cloud_branch_creates_entry(hass: HomeAssistant):
     with patch(
         "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
-        new=AsyncMock(return_value=[{"id": "1", "sn": "sn999"}]),
+        new=AsyncMock(return_value=[{"id": "1", "sn": "sn999", "productModel": "3102"}]),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         assert result["type"] == "form" and result["step_id"] == "user"
@@ -244,6 +246,9 @@ async def test_config_flow_cloud_branch_creates_entry(hass: HomeAssistant):
         assert result["type"] == "create_entry"
         assert result["data"][CONF_INVERTER_SERIAL] == "SN999"  # auto-detected, uppercased
         assert result["data"][CONF_CLOUD_INVERTER_ID] == "1"  # cloud id stored for inverterDetail
+        assert result["data"][CONF_CLOUD_PRODUCT_MODEL] == "3102"
+        assert result["data"][CONF_CLOUD_DETECTED_MODEL] == "S5-EH1P"
+        assert result["data"]["model"] == "S5-EH1P"
         assert result["data"][CONF_PROTOCOL_MODE] == PROTO_CLOUD_ONLY
         assert result["title"] == "Solis: SN999 (Cloud)"
 
@@ -326,3 +331,51 @@ async def test_config_flow_cloud_multiple_inverters_requires_serial(hass: HomeAs
             )
         assert result["type"] == "create_entry"
         assert result["data"][CONF_INVERTER_SERIAL] == "SNB"
+
+
+async def test_dual_flow_cloud_model_overrides_wrong_modbus_model(hass: HomeAssistant):
+    from custom_components.solisconnect.config_flow import CONN_TYPE_BOTH
+    from custom_components.solisconnect.const import CONN_TYPE_TCP, PROTO_BOTH_FAILOVER
+
+    with (
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register", return_value=[1]),
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+            new=AsyncMock(return_value=[{"id": "1", "sn": "sn999", "productModel": "3102"}]),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CONNECTION_TYPE: CONN_TYPE_BOTH})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CONNECTION_TYPE: CONN_TYPE_TCP})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                "host": "1.2.3.4",
+                "port": 502,
+                "slave": 1,
+                "inverter_serial": "sn999",
+                "model": "S5-GR1P",
+                "connection": "S2_WL_ST",
+                "has_v2": True,
+                "has_pv": True,
+                "has_ac_coupling": False,
+                "has_parallel": False,
+                "has_battery": True,
+                "has_hv_battery": False,
+                "has_generator": True,
+            },
+        )
+        assert result["type"] == "form" and result["step_id"] == "cloud"
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_CLOUD_KEY_ID: "kid", CONF_CLOUD_KEY_SECRET: "ks", CONF_CLOUD_PLANT_ID: "plant1"},
+        )
+        assert result["type"] == "form" and result["step_id"] == "dual_mode"
+        with patch("custom_components.solisconnect.async_setup_entry", return_value=True):
+            result = await hass.config_entries.flow.async_configure(result["flow_id"], {"dual_mode": "failover_modbus"})
+
+        assert result["type"] == "create_entry"
+        assert result["data"]["model"] == "S5-EH1P"
+        assert result["data"][CONF_CLOUD_DETECTED_MODEL] == "S5-EH1P"
+        assert result["data"][CONF_PROTOCOL_MODE] == PROTO_BOTH_FAILOVER
