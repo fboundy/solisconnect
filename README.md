@@ -1,10 +1,37 @@
-# SolisConnect for Home Assistant
+# SolisConnect for Home Assistant - EXPERIMENTAL
 
 ## Description
 
 SolisConnect is a Home Assistant custom integration for Solis and compatible inverters. It can poll and control an inverter over local Modbus, the SolisCloud API, or a combined Modbus + SolisCloud setup that keeps one shared Home Assistant device and entity set.
 
 The integration stores protocol data in the same register cache, so entities do not duplicate when you add cloud support. Local Modbus remains the broadest and fastest path; SolisCloud is useful when local access is unavailable or as a backup protocol.
+
+## This integration is experimental. Please raise issues at (https://github.com/fboundy/solisconnect//issues).
+
+**Inverters Tested**
+Solis and equivalent Axitec, Zonneplan inverters
+
+Protocol verification status: ⚪ = not yet verified. The columns will be filled in as test reports come in for each protocol mode.
+
+| Type          | Inverter          | Modbus | Cloud | Combined |
+| ------------- | ----------------- | :----: | :---: | :------: |
+| S6-EH3P       | [S6-EH3P20K-H]    |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH3P15K-H      |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH3P(12-20)K-H |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH1P6K-L-PRO   |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH1P6K-L-PLUS  |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | [S6-EH3P10K-H-ZP] |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | [S6-EH3P10K-H-EU] |   ⚪   |  ⚪   |    ⚪    |
+| S6-GR1P       | [S6-GR1P4K]       |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | [S5-EH1(3-6)K-L]  |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | [S5-EH1P5K-L]     |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | [S5-EH1P6K-L]     |   ⚪   |  ⚪   |    ⚪    |
+| S5-GC         | [S5-GC30K]        |   ⚪   |  ⚪   |    ⚪    |
+| S5-GC         | [S5-GC60K]        |   ⚪   |  ⚪   |    ⚪    |
+| RAI-\*        | [RAI-3K-48ES-5G]  |   ⚪   |  ⚪   |    ⚪    |
+| RHI-\*        | [RHI-3K-48ES-5G]  |   ⚪   |  ⚪   |    ⚪    |
+| 3P(3-20)K-4G  | [3P6K-4G]         |   ⚪   |  ⚪   |    ⚪    |
+| 1P(2.5-6)K-4G | [1P(2.5-6)K-4G]   |   ⚪   |  ⚪   |    ⚪    |
 
 ## Credits and Acknowledgements
 
@@ -289,33 +316,6 @@ view_layout:
 
 Card inspiration from https://github.com/slipx06/Sunsynk-Home-Assistant-Dash
 
-## Tested
-
-**Inverters Tested**
-Solis and equivalent Axitec, Zonneplan inverters
-
-Protocol verification status: ⚪ = not yet verified. The columns will be filled in as test reports come in for each protocol mode.
-
-| Type          | Inverter                                                                                          | Modbus | Cloud | Combined |
-| ------------- | ------------------------------------------------------------------------------------------------- | :----: | :---: | :------: |
-| S6-EH3P       | [S6-EH3P20K-H](https://github.com/fboundy/solisconnect/issues/93)                                  |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | S6-EH3P15K-H                                                                                       |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | S6-EH3P(12-20)K-H                                                                                  |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | S6-EH1P6K-L-PRO                                                                                    |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | S6-EH1P6K-L-PLUS                                                                                   |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | [S6-EH3P10K-H-ZP](https://github.com/fboundy/solisconnect/issues/191)                              |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | [S6-EH3P10K-H-EU](https://github.com/fboundy/solisconnect/issues/202)                              |   ⚪   |  ⚪   |    ⚪    |
-| S6-GR1P       | [S6-GR1P4K](https://github.com/fboundy/solisconnect/issues/84)                                     |   ⚪   |  ⚪   |    ⚪    |
-| S5-EH1        | [S5-EH1(3-6)K-L](https://github.com/fboundy/solisconnect/issues/89)                                |   ⚪   |  ⚪   |    ⚪    |
-| S5-EH1        | [S5-EH1P5K-L](https://github.com/fboundy/solisconnect/issues/94)                                   |   ⚪   |  ⚪   |    ⚪    |
-| S5-EH1        | [S5-EH1P6K-L](https://github.com/fboundy/solisconnect/issues/94#issuecomment-2656512651)           |   ⚪   |  ⚪   |    ⚪    |
-| S5-GC         | [S5-GC30K](https://github.com/fboundy/solisconnect/issues/173)                                     |   ⚪   |  ⚪   |    ⚪    |
-| S5-GC         | [S5-GC60K](https://github.com/fboundy/solisconnect/issues/180#issuecomment-2887414843)             |   ⚪   |  ⚪   |    ⚪    |
-| RAI-\*        | [RAI-3K-48ES-5G](https://github.com/fboundy/solisconnect/issues/174)                               |   ⚪   |  ⚪   |    ⚪    |
-| RHI-\*        | [RHI-3K-48ES-5G](https://github.com/fboundy/solisconnect/issues/97#issuecomment-2639807764)        |   ⚪   |  ⚪   |    ⚪    |
-| 3P(3-20)K-4G  | [3P6K-4G](https://github.com/fboundy/solisconnect/issues/210)                                      |   ⚪   |  ⚪   |    ⚪    |
-| 1P(2.5-6)K-4G | [1P(2.5-6)K-4G](https://github.com/fboundy/solisconnect/issues/230)                                |   ⚪   |  ⚪   |    ⚪    |
-
 **Wifi Dongles Tested**
 
 - S2_WL_ST
@@ -333,8 +333,6 @@ On Home Assistant OS/Supervised systems, live logs are available with:
 ha core logs
 ```
 
-If you also run the separate `hultenvp/solis-sensor` cloud integration, log lines from `custom_components.solis` belong to that integration, not SolisConnect. Running both integrations with the same SolisCloud key can increase cloud `atRead` traffic.
-
 ### Restoring Sensor History
 
 If a sensor's entity ID changes (e.g., during migration) and you lose its history, you can manually restore it using Home Assistant's statistics tool:
@@ -347,9 +345,5 @@ If a sensor's entity ID changes (e.g., during migration) and you lose its histor
 4. Click on the **current** sensor, click the gear icon, and now rename the "Entity ID" to the old one
 
 Alternatively, this integration makes it much easier https://github.com/mayerwin/HA-Merge-Sensor-History
-
-#### ⚠️ Note on Reconfiguration
-
-If the reconfiguration flow does not ask for your **Serial Number**, please delete the device and re-add it as a new device.
 
 - **Tip:** Rename the new device to match your old device's name and select **"Recreate Entity IDs"** during setup. This will ensure your history and dashboards remain functional. as mentioned here [Comment by 0rangutan](https://github.com/fboundy/solisconnect/pull/309#issuecomment-3638890631)
