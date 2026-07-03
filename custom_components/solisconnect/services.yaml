@@ -10,9 +10,17 @@ solis_write_holding_register:
       default: ''
       example: 500
     host:
-      description: IP of the inverter, only required when running multiple inverters
+      description: Configured Modbus IP of the target inverter; only required when running multiple inverters. Prefer 'serial' for dual-protocol/cloud entries, since 'host' matches the inverter's configured Modbus link regardless of which protocol is currently active.
       default: ''
       example: 192.168.1.75
+    slave:
+      description: Modbus slave/unit ID of the target inverter, when disambiguating by host on a shared link
+      default: 1
+      example: 1
+    serial:
+      description: Inverter serial number of the target inverter; protocol-stable, works for Modbus, cloud, and dual-protocol entries
+      default: ''
+      example: '1234567890123456'
 solis_write_time:
   description: Writes a time string to an entity
   fields:

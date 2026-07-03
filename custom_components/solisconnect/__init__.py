@@ -9,7 +9,7 @@ from homeassistant.components.persistent_notification import async_create as pn_
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryError
+from homeassistant.exceptions import ConfigEntryError, HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.device_registry import DeviceEntry
 
 from .const import (
@@ -60,6 +60,8 @@ SCHEME_HOLDING_REGISTER = vol.Schema(
         vol.Required("address"): vol.Coerce(int),
         vol.Required("value"): vol.Coerce(int),
         vol.Optional("host"): vol.Coerce(str),
+        vol.Optional("slave"): vol.Coerce(int),
+        vol.Optional("serial"): vol.Coerce(str),
     }
 )
 SCHEME_TIME_SET = vol.Schema({vol.Required("entity_id"): vol.Coerce(str), vol.Required("time"): vol.Coerce(str)})
@@ -73,18 +75,31 @@ async def async_remove_config_entry_device(hass: HomeAssistant, config_entry: Co
 async def async_setup(hass: HomeAssistant, entry: ConfigEntry):
     """Set up the Modbus integration."""
 
-    def service_write_holding_register(call: ServiceCall):
+    async def service_write_holding_register(call: ServiceCall):
         address = call.data.get("address")
         value = call.data.get("value")
         host = call.data.get("host")
         slave = call.data.get("slave", 1)
+        serial = call.data.get("serial")
 
-        if host:
-            controller = get_controller(hass, host, slave)
-            hass.create_task(controller.async_write_holding_register(int(address), int(value)))
+        if serial or host:
+            controller = get_controller(hass, host, slave, serial=serial)
+            if controller is None:
+                raise ServiceValidationError(f"No configured SolisConnect inverter matches serial={serial!r} host={host!r} slave={slave}")
         else:
-            for controller in hass.data[DOMAIN][CONTROLLER].values():
-                hass.create_task(controller.async_write_holding_register(int(address), int(value)))
+            controllers = list(hass.data.get(DOMAIN, {}).get(CONTROLLER, {}).values())
+            if not controllers:
+                raise ServiceValidationError("No configured SolisConnect inverter found")
+            if len(controllers) > 1:
+                raise ServiceValidationError("Multiple SolisConnect inverters are configured; specify a target 'serial' or 'host' to disambiguate")
+            controller = controllers[0]
+
+        try:
+            await controller.async_write_holding_register(int(address), int(value))
+        except HomeAssistantError:
+            raise
+        except Exception as error:
+            raise HomeAssistantError(f"Writing register {address}={value} failed: {error}") from error
 
     async def service_set_time(call: ServiceCall) -> None:
         """Service to update a Solis time entity."""
@@ -176,7 +191,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             connection_id = serial_port
 
         # Stagger additional config entries on the same Modbus link so two inverters do not hammer the logger at once.
-        existing_same_link = sum(1 for c in hass.data[DOMAIN][CONTROLLER].values() if getattr(c, "connection_id", None) == connection_id)
+        # Stored controllers are SolisInverterHub instances; connection_id lives on the hub's .modbus controller.
+        existing_same_link = sum(
+            1 for c in hass.data[DOMAIN][CONTROLLER].values() if getattr(getattr(c, "modbus", None), "connection_id", None) == connection_id
+        )
         if existing_same_link:
             delay_s = min(1.5 * existing_same_link, 5.0)
             _LOGGER.debug(
