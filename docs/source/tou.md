@@ -40,7 +40,7 @@ The newer, richer scheduling mechanism with independent settings per slot.
   - `+2`: cut-off voltage (V, editable `number`, 0-300, ×0.1)
   - `+3..+6`: start hour, start minute, end hour, end minute (paired into a `time` entity)
 - SolisCloud mapping (`sensor_data/cloud_mapping.py`, `_tou_v2_mappings()`):
-  - Slot enable bits -> CIDs `5916-5927` (charge slots 1-6, then discharge slots 1-6), merged into the shared `43707` bitfield by `CloudDataRetrieval._merge_bit_words`.
+  - Slot enable bits -> CIDs `5916-5927` (charge slots 1-6, then discharge slots 1-6), merged into the shared `43707` bitfield by `CloudDataRetrieval._merge_switch_bits`. On a cold cache the merged register is only published once all 12 slot-switch CIDs have been observed in a poll cycle, so a CID transiently missing from one `atReadBatch` response is never mistaken for "off".
   - Target SOC -> CIDs `5928-5933` (charge), `5965, 5969, 5973, 5977, 5981, 5984` (discharge).
   - Battery current -> CIDs `5948-5963` family (charge), `5967-5986` family (discharge).
   - Cut-off voltage -> the paired CID in the same current/voltage CID families.

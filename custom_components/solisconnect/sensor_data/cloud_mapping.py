@@ -348,8 +348,14 @@ _CLOUD_CID_MAPPINGS = [
 
 CLOUD_CID_MAP: dict[int, CloudCidMapping] = {m.cid: m for m in _CLOUD_CID_MAPPINGS}
 
-# Write routing: which CID a holding-register write lands on
-REGISTER_TO_CID: dict[int, CloudCidMapping] = {register: mapping for mapping in CLOUD_CID_MAP.values() for register in mapping.registers}
+# Write routing: which CID a holding-register write lands on. TOU V2 switch-slot mappings are
+# excluded here: all twelve of them share register 43707, so a plain dict comprehension would
+# silently collapse to whichever mapping iterates last. Writes to 43707 are handled by the
+# dedicated TOU_SWITCH_REGISTER special-case instead; any future caller that looks up 43707
+# here directly should get a clear miss rather than a wrong CID.
+REGISTER_TO_CID: dict[int, CloudCidMapping] = {
+    register: mapping for mapping in CLOUD_CID_MAP.values() if mapping.merge_register_bit is None for register in mapping.registers
+}
 TOU_SWITCH_REGISTER = 43707
 TOU_SWITCH_CIDS_BY_BIT: dict[int, int] = {
     mapping.merge_register_bit: mapping.cid for mapping in CLOUD_CID_MAP.values() if mapping.merge_register_bit is not None

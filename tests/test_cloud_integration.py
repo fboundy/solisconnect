@@ -48,8 +48,20 @@ CANNED_BATCH = {
     636: "33",
     157: "52",
     158: "15",
+    # All 12 TOU V2 switch-slot CIDs must be present for the merged 43707 bitfield to publish
+    # on a cold cache (see CloudDataRetrieval._merge_switch_bits): a partial batch is treated
+    # as "unknown so far" rather than defaulting the unseen bits to off.
     5916: "1",
     5917: "0",
+    5918: "0",
+    5919: "0",
+    5920: "0",
+    5921: "0",
+    5922: "0",
+    5923: "0",
+    5924: "0",
+    5925: "0",
+    5926: "0",
     5927: "1",
     5946: "09:30-10:45",
     5948: "12.5",

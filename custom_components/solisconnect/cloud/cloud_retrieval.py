@@ -16,6 +16,8 @@ from custom_components.solisconnect.helpers import (
 from custom_components.solisconnect.sensor_data.cloud_mapping import (
     CLOUD_CID_MAP,
     CLOUD_INPUT_MAP,
+    TOU_SWITCH_CIDS_BY_BIT,
+    TOU_SWITCH_REGISTER,
     encode_cid_value,
     encode_engineering_value,
     registers_covered,
@@ -100,12 +102,17 @@ class CloudDataRetrieval:
                 mapping = CLOUD_CID_MAP.get(cid)
                 if mapping is None:
                     continue  # the API returns extra related CIDs beyond those requested
+                if mapping.merge_register_bit is not None:
+                    continue  # TOU V2 switch bits are merged together below, not per-CID
                 words = encode_cid_value(mapping, msg)
                 if words:
-                    if mapping.merge_register_bit is not None:
-                        words = self._merge_bit_words(words, mapping.merge_register_bit)
                     self._publish_words(words)
                     cid_words += len(words)
+
+            switch_words = self._merge_switch_bits(batch)
+            if switch_words:
+                self._publish_words(switch_words)
+                cid_words += len(switch_words)
 
             controller.last_cloud_success = datetime.now(UTC)
             # INFO so it is visible in `ha core logs` when diagnosing live installs
@@ -140,16 +147,37 @@ class CloudDataRetrieval:
             cache_save(self.hass, self.controller, register, word)
             notify_register_update(self.hass, self.controller, register, word)
 
-    def _merge_bit_words(self, words: dict[int, int], bit_position: int) -> dict[int, int]:
-        """Merge one CID switch value into the shared TOU V2 bitfield register."""
-        register, bit_value = next(iter(words.items()))
-        current = cache_get(self.hass, self.controller, register)
-        merged = int(current) if current is not None else 0
-        if int(bit_value):
-            merged |= 1 << bit_position
+    def _merge_switch_bits(self, batch: dict[int, str]) -> dict[int, int] | None:
+        """Build the merged TOU V2 switch register from this poll's batch reads plus the cache.
+
+        A switch CID missing from one poll's batch response must not be treated as "off": on a
+        cold cache (nothing published yet) we only publish once every switch bit has been observed
+        at least once, so a transiently-missing CID can never permanently zero a bit it never
+        actually reported. On a warm cache, a missing CID simply leaves its bit as last observed.
+        """
+        observed: dict[int, int] = {}
+        for bit, cid in TOU_SWITCH_CIDS_BY_BIT.items():
+            msg = batch.get(cid)
+            if msg is None:
+                continue
+            words = encode_cid_value(CLOUD_CID_MAP[cid], msg)
+            if words:
+                observed[bit] = words[TOU_SWITCH_REGISTER]
+
+        current = cache_get(self.hass, self.controller, TOU_SWITCH_REGISTER)
+        if current is None:
+            if len(observed) < len(TOU_SWITCH_CIDS_BY_BIT):
+                return None  # incomplete cold-cache read; defer until a cycle observes every bit
+            merged = 0
         else:
-            merged &= ~(1 << bit_position)
-        return {register: merged}
+            merged = int(current)
+
+        for bit, value in observed.items():
+            if value:
+                merged |= 1 << bit
+            else:
+                merged &= ~(1 << bit)
+        return {TOU_SWITCH_REGISTER: merged}
 
     def _publish_status(self):
         """Pseudo-registers used by diagnostic derived sensors (same as DataRetrieval)."""

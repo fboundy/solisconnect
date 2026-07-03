@@ -168,7 +168,7 @@ class SolisCloudController(SolisControllerBase):
         new_value &= 0x0FFF
         old_value = cache_get(self.hass, self, TOU_SWITCH_REGISTER)
         if old_value is not None:
-            old_value = int(old_value)
+            old_value = int(old_value) & 0x0FFF
         else:
             try:
                 old_value = await self._read_tou_switch_bitfield()
