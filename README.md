@@ -120,6 +120,7 @@ Home Assistant only allows one `iot_class` value in the manifest. SolisConnect i
 **Inverter Serial**: (Required)
 
 - Enter your inverter's serial number. This is now **mandatory** for generating unique entity IDs and ensuring configuration stability.
+- On Modbus hybrid inverters, once connectivity is confirmed the integration reads the serial directly from the device and silently corrects a mistyped value (grid/string models don't expose this register, so the typed value is used as-is). On SolisCloud, the serial is optional and auto-resolved when your plant has exactly one inverter.
 
 **Poll Interval**:
 

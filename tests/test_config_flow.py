@@ -8,6 +8,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.solisconnect.const import CONN_TYPE_TCP, DOMAIN
 
 
+def _encode_serial_registers(serial: str) -> list[int]:
+    """Inverse of helpers.extract_serial_number: pack an ASCII serial into 16-bit words."""
+    padded = serial if len(serial) % 2 == 0 else serial + "\x00"
+    return [(ord(padded[i]) << 8) | ord(padded[i + 1]) for i in range(0, len(padded), 2)]
+
+
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     yield
@@ -81,6 +87,8 @@ async def test_flow_user_hmi_version_overrides_has_v2(hass: HomeAssistant):
     async def fake_read_input_register(register, count):
         if register == 33002:
             return [0x4AFF]  # below the V2 threshold
+        if register == 33004:
+            return None  # no serial data available; must not corrupt the typed serial
         return [1]
 
     with (
@@ -113,6 +121,7 @@ async def test_flow_user_hmi_version_overrides_has_v2(hass: HomeAssistant):
 
         assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
         assert result["data"]["has_v2"] is False
+        assert result["data"]["inverter_serial"] == "SN124"  # no serial detected; typed value survives
 
 
 @pytest.mark.asyncio
@@ -122,6 +131,8 @@ async def test_flow_user_hmi_read_failure_keeps_user_choice(hass: HomeAssistant)
     async def fake_read_input_register(register, count):
         if register == 33002:
             raise TimeoutError("no response")
+        if register == 33004:
+            return None
         return [1]
 
     with (
@@ -154,6 +165,92 @@ async def test_flow_user_hmi_read_failure_keeps_user_choice(hass: HomeAssistant)
 
         assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
         assert result["data"]["has_v2"] is False
+        assert result["data"]["inverter_serial"] == "SN125"
+
+
+@pytest.mark.asyncio
+async def test_flow_user_device_serial_overrides_typed_serial(hass: HomeAssistant):
+    """A serial read from device registers 33004-33019 overrides a mistyped form value."""
+    device_serial_registers = _encode_serial_registers("1234567890123456")
+
+    async def fake_read_input_register(register, count):
+        if register == 33004:
+            return device_serial_registers
+        return [1]
+
+    with (
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch(
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
+            side_effect=fake_read_input_register,
+        ),
+        patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={"connection_type": CONN_TYPE_TCP})
+
+        config_input = {
+            "host": "1.2.3.4",
+            "port": 502,
+            "slave": 1,
+            "model": "S6-EH1P",
+            "connection": "S2_WL_ST",
+            "has_v2": True,
+            "has_pv": True,
+            "has_ac_coupling": False,
+            "has_parallel": False,
+            "has_battery": True,
+            "has_hv_battery": False,
+            "has_generator": False,
+            "inverter_serial": "wrongserial",
+        }
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input=config_input)
+
+        assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+        assert result["data"]["inverter_serial"] == "1234567890123456"
+
+
+@pytest.mark.asyncio
+async def test_flow_user_grid_model_skips_serial_detection(hass: HomeAssistant):
+    """Grid/string inverters don't expose the serial-number register range; detection must be skipped."""
+    registers_read = []
+
+    async def fake_read_input_register(register, count):
+        registers_read.append(register)
+        return [1]
+
+    with (
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch(
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
+            side_effect=fake_read_input_register,
+        ),
+        patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={"connection_type": CONN_TYPE_TCP})
+
+        config_input = {
+            "host": "1.2.3.4",
+            "port": 502,
+            "slave": 1,
+            "model": "S6-GR1P",
+            "connection": "S2_WL_ST",
+            "has_v2": True,
+            "has_pv": True,
+            "has_ac_coupling": False,
+            "has_parallel": False,
+            "has_battery": True,
+            "has_hv_battery": False,
+            "has_generator": False,
+            "inverter_serial": "sn126",
+        }
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input=config_input)
+
+        assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+        assert result["data"]["inverter_serial"] == "SN126"
+        assert 33004 not in registers_read  # serial detection is hybrid-only; grid/string lacks this register range
+        assert 33002 in registers_read  # HMI-version detection is not gated by inverter type
 
 
 @pytest.mark.asyncio

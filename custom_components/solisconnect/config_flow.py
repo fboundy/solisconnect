@@ -45,7 +45,7 @@ from .const import (
 )
 from .data.enums import InverterType
 from .data.solis_config import CONNECTION_METHOD, SOLIS_INVERTERS, InverterConfig, inverter_options_from_config
-from .helpers import hmi_version_supports_v2
+from .helpers import extract_serial_number, hmi_version_supports_v2
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -615,6 +615,26 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 user_input.get(CONF_INVERTER_SERIAL),
                             )
                             user_input["has_v2"] = detected_has_v2
+
+                # Auto-detect the inverter serial from the device (registers 33004-33019,
+                # ASCII) rather than trusting only what the installer typed. Grid/string
+                # models don't expose this range, so skip there. A failed/garbage read must
+                # never block setup; the user's typed serial survives untouched.
+                if inverter_config.type not in [InverterType.GRID, InverterType.STRING]:
+                    try:
+                        serial_registers = await modbus_controller.async_read_input_register(33004, 16)
+                    except Exception as serial_error:
+                        _LOGGER.debug("Serial number read failed during setup; leaving serial as configured: %s", serial_error)
+                    else:
+                        if serial_registers:
+                            detected_serial = extract_serial_number(serial_registers).strip().upper()
+                            if detected_serial and detected_serial != (user_input.get(CONF_INVERTER_SERIAL) or "").strip().upper():
+                                _LOGGER.info(
+                                    "Detected inverter serial %s from device; overriding configured serial %s",
+                                    detected_serial,
+                                    user_input.get(CONF_INVERTER_SERIAL),
+                                )
+                                user_input[CONF_INVERTER_SERIAL] = detected_serial
 
                 return True, None
             except Exception as e:
