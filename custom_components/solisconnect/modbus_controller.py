@@ -1,7 +1,7 @@
-import asyncio
 import logging
 from datetime import UTC, datetime
 
+from homeassistant.exceptions import HomeAssistantError
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
 
 from custom_components.solisconnect.client_manager import ModbusClientManager
@@ -133,38 +133,7 @@ class ModbusController(SolisControllerBase):
         self._derived_sensors = derived_sensors
         # self.poll_lock = asyncio.Lock() # Replaced by shared lock from manager
 
-        # Modbus Write Queue
-        self.write_queue = asyncio.Queue()
         self._last_modbus_success = datetime.now(UTC)
-
-    async def process_write_queue(self):
-        """Process queued Modbus write requests sequentially.
-
-        This method runs in an infinite loop, processing write requests from the queue.
-        It ensures that write operations are executed one at a time, with appropriate
-        delays between operations to avoid overwhelming the Modbus device.
-
-        Returns:
-            None
-        """
-        while True:
-            if not self.connected():
-                await asyncio.sleep(5)
-                continue
-
-            if self.write_queue.empty():
-                await asyncio.sleep(0.2)
-                continue
-
-            write_request = await self.write_queue.get()
-            register, value, multiple = write_request
-
-            if multiple:
-                await self._execute_write_holding_registers(register, value)
-            else:
-                await self._execute_write_holding_register(register, value)
-
-            self.write_queue.task_done()
 
     async def _execute_write_holding_register(self, register, value):
         """Executes a single register write with interframe delay.
@@ -263,28 +232,36 @@ class ModbusController(SolisControllerBase):
             return None
 
     async def async_write_holding_register(self, register, value):
-        """Queues a write request to the Modbus device (write single register).
+        """Write a single holding register.
+
+        Serialized against reads and other writes by the shared per-link poll_lock and
+        inter-frame spacing inside the executor. Raises HomeAssistantError on failure so
+        callers (entities, services, the dual-protocol hub fallback) see the result.
 
         Args:
             register (int): The register address to write to.
             value (int): The value to write to the register.
-
-        Returns:
-            None
         """
-        await self.write_queue.put((register, value, False))
+        result = await self._execute_write_holding_register(register, value)
+        if result is None:
+            raise HomeAssistantError(f"({self.host}.{self.device_id}) Modbus write of register {register} failed")
 
     async def async_write_holding_registers(self, start_register, values):
-        """Queues a write request to the Modbus device (write multiple registers).
+        """Write multiple consecutive holding registers.
+
+        Serialized against reads and other writes by the shared per-link poll_lock and
+        inter-frame spacing inside the executor. Raises HomeAssistantError on failure so
+        callers (entities, services, the dual-protocol hub fallback) see the result.
 
         Args:
             start_register (int): The starting register address to write to.
             values (list): A list of values to write to consecutive registers.
-
-        Returns:
-            None
         """
-        await self.write_queue.put((start_register, values, True))
+        result = await self._execute_write_holding_registers(start_register, values)
+        if result is None:
+            raise HomeAssistantError(
+                f"({self.host}.{self.device_id}) Modbus write of registers {start_register}-{int(start_register) + len(values) - 1} failed"
+            )
 
     async def inter_frame_wait(self, is_write=False):
         """Spacing between Modbus frames on this link (shared across parallel inverters on the same host:port)."""

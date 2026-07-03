@@ -24,6 +24,7 @@ live atRead sysCommand.registerAddr metadata (636->43110, 157->43024, 158->43011
 """
 
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -96,6 +97,9 @@ class CloudCidMapping:
     cid: int
     multiplier: float = 1.0
     data_type: DataType = DataType.U16
+    to_registers: Callable[[str], dict[int, int] | None] | None = field(default=None, compare=False)
+    to_cid_value: Callable[[list[int]], str | None] | None = field(default=None, compare=False)
+    merge_register_bit: int | None = None
 
 
 def _words_for_raw(raw: int, registers: tuple[int, ...], data_type: DataType) -> dict[int, int] | None:
@@ -129,6 +133,8 @@ def encode_engineering_value(mapping: CloudFieldMapping, value: float, cloud_uni
 
 def encode_cid_value(mapping: CloudCidMapping, msg: str) -> dict[int, int] | None:
     """Convert an atRead 'msg' value into raw holding-register words."""
+    if mapping.to_registers is not None:
+        return mapping.to_registers(msg)
     try:
         value = float(msg)
     except (TypeError, ValueError):
@@ -220,24 +226,131 @@ CLOUD_INPUT_MAP: dict[str, CloudFieldMapping] = {m.api_field: m for m in [
 ]}
 # fmt: on
 
+# Lenient on shape (single-digit fields, spaces around the dash); ranges checked after parsing.
+_TIME_SLOT_RE = re.compile(r"^(\d{1,2}):(\d{1,2})\s*-\s*(\d{1,2}):(\d{1,2})$")
+
+
+def _decode_time_slot(registers: tuple[int, int, int, int]) -> Callable[[str], dict[int, int] | None]:
+    def decode(msg: str) -> dict[int, int] | None:
+        text = str(msg if msg is not None else "").strip()
+        if text in ("", "0"):
+            # Unset/disabled slot: publish 00:00-00:00 so entities update instead of going stale
+            return dict.fromkeys(registers, 0)
+        match = _TIME_SLOT_RE.match(text)
+        if not match:
+            return None
+        start_hour, start_minute, end_hour, end_minute = (int(part) for part in match.groups())
+        if start_hour > 23 or end_hour > 23 or start_minute > 59 or end_minute > 59:
+            return None
+        return dict(zip(registers, (start_hour, start_minute, end_hour, end_minute)))
+
+    return decode
+
+
+def _encode_time_slot(words: list[int]) -> str | None:
+    if len(words) != 4:
+        return None
+    start_hour, start_minute, end_hour, end_minute = [int(word) for word in words]
+    if not (0 <= start_hour <= 23 and 0 <= end_hour <= 23 and 0 <= start_minute <= 59 and 0 <= end_minute <= 59):
+        return None
+    return f"{start_hour:02d}:{start_minute:02d}-{end_hour:02d}:{end_minute:02d}"
+
+
+def _decode_slot_switch(register: int) -> Callable[[str], dict[int, int] | None]:
+    def decode(msg: str) -> dict[int, int] | None:
+        try:
+            return {register: 1 if int(str(msg).strip()) else 0}
+        except (TypeError, ValueError):
+            return None
+
+    return decode
+
+
+def _tou_time_mapping(registers: tuple[int, int, int, int], cid: int) -> CloudCidMapping:
+    return CloudCidMapping(
+        registers=registers,
+        cid=cid,
+        to_registers=_decode_time_slot(registers),
+        to_cid_value=_encode_time_slot,
+    )
+
+
+def _tou_switch_mapping(cid: int, bit: int) -> CloudCidMapping:
+    return CloudCidMapping(
+        registers=(43707,),
+        cid=cid,
+        to_registers=_decode_slot_switch(43707),
+        to_cid_value=lambda words: str((int(words[0]) >> bit) & 1) if len(words) == 1 else None,
+        merge_register_bit=bit,
+    )
+
+
+def _tou_v2_mappings() -> list[CloudCidMapping]:
+    mappings: list[CloudCidMapping] = []
+
+    # Time-of-Use V2 slot enable switches: charge slots occupy bits 0-5, discharge slots bits 6-11.
+    for bit, cid in enumerate([5916, 5917, 5918, 5919, 5920, 5921, 5922, 5923, 5924, 5925, 5926, 5927]):
+        mappings.append(_tou_switch_mapping(cid, bit))
+
+    charge_time_cids = [5946, 5949, 5952, 5955, 5958, 5961]
+    discharge_time_cids = [5964, 5968, 5972, 5976, 5980, 5987]
+    charge_soc_cids = [5928, 5929, 5930, 5931, 5932, 5933]
+    discharge_soc_cids = [5965, 5969, 5973, 5977, 5981, 5984]
+    charge_voltage_cids = [5947, 5950, 5953, 5956, 5959, 5962]
+    discharge_voltage_cids = [5966, 5970, 5974, 5978, 5982, 5985]
+    charge_current_cids = [5948, 5951, 5954, 5957, 5960, 5963]
+    discharge_current_cids = [5967, 5971, 5975, 5979, 5983, 5986]
+
+    for slot in range(6):
+        charge_base = 43708 + slot * 7
+        discharge_base = 43750 + slot * 7
+        mappings.extend(
+            [
+                CloudCidMapping(registers=(charge_base,), cid=charge_soc_cids[slot]),
+                CloudCidMapping(registers=(charge_base + 1,), cid=charge_current_cids[slot], multiplier=0.1),
+                CloudCidMapping(registers=(charge_base + 2,), cid=charge_voltage_cids[slot], multiplier=0.1),
+                _tou_time_mapping((charge_base + 3, charge_base + 4, charge_base + 5, charge_base + 6), charge_time_cids[slot]),
+                CloudCidMapping(registers=(discharge_base,), cid=discharge_soc_cids[slot]),
+                CloudCidMapping(registers=(discharge_base + 1,), cid=discharge_current_cids[slot], multiplier=0.1),
+                CloudCidMapping(registers=(discharge_base + 2,), cid=discharge_voltage_cids[slot], multiplier=0.1),
+                _tou_time_mapping(
+                    (discharge_base + 3, discharge_base + 4, discharge_base + 5, discharge_base + 6),
+                    discharge_time_cids[slot],
+                ),
+            ]
+        )
+
+    return mappings
+
+
 # --- control CID <-> holding registers -------------------------------------------------------
-CLOUD_CID_MAP: dict[int, CloudCidMapping] = {
-    m.cid: m
-    for m in [
-        CloudCidMapping(registers=(43110,), cid=636),  # storage mode bitfield (== Modbus 43110)
-        CloudCidMapping(registers=(43024,), cid=157),  # reserved / backup SOC %
-        CloudCidMapping(registers=(43011,), cid=158),  # over-discharge SOC %
-        CloudCidMapping(registers=(43018,), cid=160),  # force-charge SOC %
-        CloudCidMapping(registers=(43074,), cid=696, multiplier=100),  # feed-in power limit (raw = W/100, cid msg = W)
-    ]
-}
+_CLOUD_CID_MAPPINGS = [
+    CloudCidMapping(registers=(43110,), cid=636),  # storage mode bitfield (== Modbus 43110)
+    CloudCidMapping(registers=(43024,), cid=157),  # reserved / backup SOC %
+    CloudCidMapping(registers=(43011,), cid=158),  # over-discharge SOC %
+    CloudCidMapping(registers=(43018,), cid=160),  # force-charge SOC %
+    CloudCidMapping(registers=(43074,), cid=696, multiplier=100),  # feed-in power limit (raw = W/100, cid msg = W)
+] + _tou_v2_mappings()
+
+CLOUD_CID_MAP: dict[int, CloudCidMapping] = {m.cid: m for m in _CLOUD_CID_MAPPINGS}
 
 # Write routing: which CID a holding-register write lands on
 REGISTER_TO_CID: dict[int, CloudCidMapping] = {register: mapping for mapping in CLOUD_CID_MAP.values() for register in mapping.registers}
+TOU_SWITCH_REGISTER = 43707
+TOU_SWITCH_CIDS_BY_BIT: dict[int, int] = {
+    mapping.merge_register_bit: mapping.cid for mapping in CLOUD_CID_MAP.values() if mapping.merge_register_bit is not None
+}
+TOU_TIME_PAIR_TO_CID: dict[tuple[int, int], CloudCidMapping] = {}
+for mapping in CLOUD_CID_MAP.values():
+    if mapping.to_cid_value is _encode_time_slot and len(mapping.registers) == 4:
+        TOU_TIME_PAIR_TO_CID[(mapping.registers[0], mapping.registers[1])] = mapping
+        TOU_TIME_PAIR_TO_CID[(mapping.registers[2], mapping.registers[3])] = mapping
 
 
-def cid_msg_from_words(mapping: CloudCidMapping, words: list[int]) -> str:
+def cid_msg_from_words(mapping: CloudCidMapping, words: list[int]) -> str | None:
     """Convert raw register word(s) into the control-API value string (inverse of encode_cid_value)."""
+    if mapping.to_cid_value is not None:
+        return mapping.to_cid_value(words)
     if len(words) == 1:
         raw = words[0]
         if mapping.data_type == DataType.S16 and raw > 0x7FFF:
@@ -246,6 +359,8 @@ def cid_msg_from_words(mapping: CloudCidMapping, words: list[int]) -> str:
         combined = (words[0] << 16) | (words[1] & 0xFFFF)
         raw = combined - 0x100000000 if combined & 0x80000000 else combined
     value = raw if mapping.multiplier in (0, 1) else raw * mapping.multiplier
+    if isinstance(value, float) and not value.is_integer():
+        return f"{value:.10g}"
     return str(round(value))
 
 

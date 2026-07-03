@@ -44,7 +44,16 @@ CANNED_DETAIL = {
     "familyLoadPowerStr": "kW",
 }
 
-CANNED_BATCH = {636: "33", 157: "52", 158: "15"}
+CANNED_BATCH = {
+    636: "33",
+    157: "52",
+    158: "15",
+    5916: "1",
+    5917: "0",
+    5927: "1",
+    5946: "09:30-10:45",
+    5948: "12.5",
+}
 
 
 @pytest.fixture(autouse=True)
@@ -132,6 +141,12 @@ async def test_cloud_only_setup_populates_cache_with_raw_words(hass: HomeAssista
         assert values[f"{SERIAL}|43110"] == 33  # cid 636
         assert values[f"{SERIAL}|43024"] == 52  # cid 157
         assert values[f"{SERIAL}|43011"] == 15  # cid 158
+        assert values[f"{SERIAL}|43707"] == 2049  # cid 5916 bit 0 + cid 5927 bit 11
+        assert values[f"{SERIAL}|43711"] == 9
+        assert values[f"{SERIAL}|43712"] == 30
+        assert values[f"{SERIAL}|43713"] == 10
+        assert values[f"{SERIAL}|43714"] == 45
+        assert values[f"{SERIAL}|43709"] == 125  # cid 5948 = 12.5 A, register multiplier x0.1
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -204,7 +219,6 @@ async def test_migration_v3_to_v4_sets_modbus_only(hass: HomeAssistant):
         patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
         patch("custom_components.solisconnect.modbus_controller.ModbusController.connected", return_value=True),
         patch("custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register", return_value=[1, 2, 3]),
-        patch("custom_components.solisconnect.modbus_controller.ModbusController.process_write_queue"),
         patch("custom_components.solisconnect.modbus_controller.ModbusController.async_read_holding_register", return_value=[1, 2, 3]),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)

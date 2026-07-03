@@ -102,9 +102,6 @@ class TestDataRetrieval(unittest.TestCase):
         # Verify time interval tracking was set up
         self.assertEqual(3, self.mock_track_time.call_count)
 
-        # Verify controller's process_write_queue was started
-        self.hass.create_task.assert_called_once_with(self.controller.process_write_queue())
-
     async def test_modbus_update_all(self):
         """Test modbus_update_all method."""
         # Mock the update methods

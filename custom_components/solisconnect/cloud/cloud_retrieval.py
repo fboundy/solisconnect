@@ -8,6 +8,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from custom_components.solisconnect.cloud.api_client import SolisCloudApiError
 from custom_components.solisconnect.cloud.cloud_controller import SolisCloudController
 from custom_components.solisconnect.helpers import (
+    cache_get,
     cache_save,
     mark_platform_entities_unavailable_for_base_sensors,
     notify_register_update,
@@ -101,6 +102,8 @@ class CloudDataRetrieval:
                     continue  # the API returns extra related CIDs beyond those requested
                 words = encode_cid_value(mapping, msg)
                 if words:
+                    if mapping.merge_register_bit is not None:
+                        words = self._merge_bit_words(words, mapping.merge_register_bit)
                     self._publish_words(words)
                     cid_words += len(words)
 
@@ -136,6 +139,17 @@ class CloudDataRetrieval:
         for register, word in words.items():
             cache_save(self.hass, self.controller, register, word)
             notify_register_update(self.hass, self.controller, register, word)
+
+    def _merge_bit_words(self, words: dict[int, int], bit_position: int) -> dict[int, int]:
+        """Merge one CID switch value into the shared TOU V2 bitfield register."""
+        register, bit_value = next(iter(words.items()))
+        current = cache_get(self.hass, self.controller, register)
+        merged = int(current) if current is not None else 0
+        if int(bit_value):
+            merged |= 1 << bit_position
+        else:
+            merged &= ~(1 << bit_position)
+        return {register: merged}
 
     def _publish_status(self):
         """Pseudo-registers used by diagnostic derived sensors (same as DataRetrieval)."""

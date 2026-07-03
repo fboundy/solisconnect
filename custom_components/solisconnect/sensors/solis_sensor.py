@@ -40,9 +40,10 @@ class SolisSensor(RestoreSensor, SensorEntity):
         self._received_values = {}
         self.poll_speed = sensor.poll_speed
 
-        # Watchdog parameters
+        # Watchdog parameters: one poll interval (seconds) plus a fixed grace period
         self._last_update = datetime.now(UTC).astimezone()
-        self._update_timeout = timedelta(minutes=self.base_sensor.controller.poll_speed.get(sensor.poll_speed, 0) + _WATCHDOG_TIMEOUT_MIN)
+        poll_interval_s = self.base_sensor.controller.poll_speed.get(sensor.poll_speed, 0)
+        self._update_timeout = timedelta(seconds=poll_interval_s) + timedelta(minutes=_WATCHDOG_TIMEOUT_MIN)
 
     def decimal_count(self, number: float) -> int | None:
         """Returns the number of decimal places in a given number."""
@@ -124,7 +125,7 @@ class SolisSensor(RestoreSensor, SensorEntity):
         """Fallback-Check: If no update for more than _WATCHDOG_TIMEOUT_MIN minutes, set values to 0 or unavailable"""
         now = datetime.now(UTC).astimezone()
         if (now - self._last_update > self._update_timeout) and self.poll_speed != PollSpeed.ONCE:
-            _LOGGER.debug(f"⚠️ No Modbus update for sensor {self._attr_name} in over {_WATCHDOG_TIMEOUT_MIN} minutes. Setting to 0.")
+            _LOGGER.debug(f"⚠️ No update for sensor {self._attr_name} in over {self._update_timeout}. Marking unavailable.")
             # self._attr_native_value = 0
             self._attr_available = False  # Set attribute unavailable (if desired)
             self.schedule_update_ha_state()

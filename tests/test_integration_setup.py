@@ -39,7 +39,6 @@ async def test_setup_entry(hass: HomeAssistant):
             "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
             return_value=[1, 2, 3],
         ),
-        patch("custom_components.solisconnect.modbus_controller.ModbusController.process_write_queue"),
         patch(
             "custom_components.solisconnect.modbus_controller.ModbusController.async_read_holding_register",
             return_value=[1, 2, 3],

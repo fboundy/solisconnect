@@ -243,8 +243,7 @@ class DataRetrieval:
         """Poll the Modbus controller for data, retrying until success.
 
         This method sets up periodic polling of the Modbus controller at different
-        intervals based on the poll speed configuration. It also starts the write
-        queue processing.
+        intervals based on the poll speed configuration.
 
         Args:
             event (Event, optional): The Home Assistant started event. Defaults to None.
@@ -278,8 +277,6 @@ class DataRetrieval:
                 timedelta(seconds=self.controller.poll_speed.get(PollSpeed.SLOW, 30)),
             )
         )
-
-        self.hass.create_task(self.controller.process_write_queue())
 
     async def modbus_update_all(self):
         """Updates all sensor groups regardless of their poll speed.

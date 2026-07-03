@@ -3,6 +3,8 @@ from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from homeassistant.exceptions import HomeAssistantError
+
 from custom_components.solisconnect.const import (
     CONN_TYPE_SERIAL,
     CONN_TYPE_TCP,
@@ -146,24 +148,56 @@ class TestModbusControllerTCP(IsolatedAsyncioTestCase):
         self.assertIsNone(result)
 
     async def test_async_write_holding_register(self):
-        """Test queuing a write to a holding register."""
-        # Mock the write queue
-        self.controller.write_queue = MagicMock()
-        self.controller.write_queue.put = AsyncMock()
+        """Test a successful direct write of a holding register updates cache and notifies."""
+        self.controller.connect = AsyncMock(return_value=True)
+        mock_result = MagicMock()
+        mock_result.isError = MagicMock(return_value=False)
+        mock_result.registers = [42]
+        self.mock_client.write_register = AsyncMock(return_value=mock_result)
 
-        await self.controller.async_write_holding_register(100, 42)
+        with (
+            patch("custom_components.solisconnect.modbus_controller.cache_save") as mock_cache,
+            patch("custom_components.solisconnect.modbus_controller.notify_register_update") as mock_notify,
+        ):
+            await self.controller.async_write_holding_register(100, 42)
 
-        self.controller.write_queue.put.assert_called_once_with((100, 42, False))
+        # TCP: slave is passed as parameter
+        self.mock_client.write_register.assert_called_once_with(address=100, value=42, device_id=1)
+        mock_cache.assert_called_once_with(self.hass, self.controller, 100, 42)
+        mock_notify.assert_called_once_with(self.hass, self.controller, 100, 42)
+
+    async def test_async_write_holding_register_failure_raises(self):
+        """A failed write raises HomeAssistantError so the dual-protocol hub fallback can fire."""
+        self.controller.connect = AsyncMock(return_value=True)
+        self.mock_client.write_register = AsyncMock(side_effect=Exception("Test error"))
+
+        with self.assertRaises(HomeAssistantError):
+            await self.controller.async_write_holding_register(100, 42)
 
     async def test_async_write_holding_registers(self):
-        """Test queuing a write to multiple holding registers."""
-        # Mock the write queue
-        self.controller.write_queue = MagicMock()
-        self.controller.write_queue.put = AsyncMock()
+        """Test a successful direct write of multiple holding registers."""
+        self.controller.connect = AsyncMock(return_value=True)
+        mock_result = MagicMock()
+        mock_result.isError = MagicMock(return_value=False)
+        self.mock_client.write_registers = AsyncMock(return_value=mock_result)
 
-        await self.controller.async_write_holding_registers(100, [42, 43])
+        with (
+            patch("custom_components.solisconnect.modbus_controller.cache_save"),
+            patch("custom_components.solisconnect.modbus_controller.notify_register_update"),
+        ):
+            await self.controller.async_write_holding_registers(100, [42, 43])
 
-        self.controller.write_queue.put.assert_called_once_with((100, [42, 43], True))
+        self.mock_client.write_registers.assert_called_once_with(address=100, values=[42, 43], device_id=1)
+
+    async def test_async_write_holding_registers_failure_raises(self):
+        """A failed block write raises HomeAssistantError instead of being swallowed."""
+        self.controller.connect = AsyncMock(return_value=True)
+        mock_result = MagicMock()
+        mock_result.isError = MagicMock(return_value=True)
+        self.mock_client.write_registers = AsyncMock(return_value=mock_result)
+
+        with self.assertRaises(HomeAssistantError):
+            await self.controller.async_write_holding_registers(100, [42, 43])
 
     def test_poll_speed(self):
         """Test the poll_speed property."""
@@ -346,24 +380,46 @@ class TestModbusControllerSerial(IsolatedAsyncioTestCase):
         self.assertIsNone(result)
 
     async def test_async_write_holding_register(self):
-        """Test queuing a write to a holding register."""
-        # Mock the write queue
-        self.controller.write_queue = MagicMock()
-        self.controller.write_queue.put = AsyncMock()
+        """Test a successful direct write of a holding register."""
+        self.controller.connect = AsyncMock(return_value=True)
+        mock_result = MagicMock()
+        mock_result.isError = MagicMock(return_value=False)
+        mock_result.registers = [42]
+        self.mock_client.write_register = AsyncMock(return_value=mock_result)
 
-        await self.controller.async_write_holding_register(100, 42)
+        with (
+            patch("custom_components.solisconnect.modbus_controller.cache_save"),
+            patch("custom_components.solisconnect.modbus_controller.notify_register_update"),
+        ):
+            await self.controller.async_write_holding_register(100, 42)
 
-        self.controller.write_queue.put.assert_called_once_with((100, 42, False))
+        # Serial: slave is set on client, not passed as parameter
+        self.mock_client.write_register.assert_called_once_with(address=100, value=42)
+        self.assertEqual(self.mock_client.slave, 1)
+
+    async def test_async_write_holding_register_failure_raises(self):
+        """A failed write raises HomeAssistantError so the dual-protocol hub fallback can fire."""
+        self.controller.connect = AsyncMock(return_value=True)
+        self.mock_client.write_register = AsyncMock(side_effect=Exception("Test error"))
+
+        with self.assertRaises(HomeAssistantError):
+            await self.controller.async_write_holding_register(100, 42)
 
     async def test_async_write_holding_registers(self):
-        """Test queuing a write to multiple holding registers."""
-        # Mock the write queue
-        self.controller.write_queue = MagicMock()
-        self.controller.write_queue.put = AsyncMock()
+        """Test a successful direct write of multiple holding registers."""
+        self.controller.connect = AsyncMock(return_value=True)
+        mock_result = MagicMock()
+        mock_result.isError = MagicMock(return_value=False)
+        self.mock_client.write_registers = AsyncMock(return_value=mock_result)
 
-        await self.controller.async_write_holding_registers(100, [42, 43])
+        with (
+            patch("custom_components.solisconnect.modbus_controller.cache_save"),
+            patch("custom_components.solisconnect.modbus_controller.notify_register_update"),
+        ):
+            await self.controller.async_write_holding_registers(100, [42, 43])
 
-        self.controller.write_queue.put.assert_called_once_with((100, [42, 43], True))
+        self.mock_client.write_registers.assert_called_once_with(address=100, values=[42, 43])
+        self.assertEqual(self.mock_client.slave, 1)
 
     def test_poll_speed(self):
         """Test the poll_speed property."""

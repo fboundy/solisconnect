@@ -5,6 +5,8 @@ myst:
 
 The following sensors are provided in the integration.
 
+Local Modbus entries can populate the full register set for the selected inverter model. SolisCloud entries use the same entity definitions, but only registers covered by the current cloud field/CID mappings update in cloud-only mode; unsupported cloud-only entities are marked unavailable. TOU V2 timed-slot CIDs are mapped into the local `43707-43791` register model, but automatic TOU V2 feature gating from cloud CID `6798` is still pending.
+
 # String Inverter Registers
 The string inverter uses the following register ranges:
 - 2xxx: Basic information and measurements

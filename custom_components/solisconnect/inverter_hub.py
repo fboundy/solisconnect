@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -58,6 +59,9 @@ class SolisInverterHub(SolisControllerBase):
         self._unsub_health = None
         self._last_switch = datetime.min.replace(tzinfo=UTC)
         self._primary_healthy_since: datetime | None = None
+        # Serializes protocol switches: _health_tick, the protocol select entity, and its
+        # restore path can all call async_set_active concurrently.
+        self._switch_lock = asyncio.Lock()
 
     # --- lifecycle -----------------------------------------------------------------
 
@@ -93,20 +97,22 @@ class SolisInverterHub(SolisControllerBase):
 
     async def async_set_active(self, protocol: str, reason: str):
         """Switch the polling/writing protocol. No-op if it is already active."""
-        if protocol == self._active_name:
-            return
         if self._controller_for(protocol) is None:
             raise HomeAssistantError(f"Protocol {protocol} is not configured for this entry")
 
-        _LOGGER.warning("(%s) Switching active protocol %s -> %s (%s)", self.cache_scope, self._active_name, protocol, reason)
-        if self._retrieval is not None:
-            await self._retrieval.async_stop()
-            self._retrieval = None
+        async with self._switch_lock:
+            if protocol == self._active_name:
+                return
 
-        self._active_name = protocol
-        self._last_switch = datetime.now(UTC)
-        self._primary_healthy_since = None
-        self._start_retrieval(protocol)
+            _LOGGER.warning("(%s) Switching active protocol %s -> %s (%s)", self.cache_scope, self._active_name, protocol, reason)
+            if self._retrieval is not None:
+                await self._retrieval.async_stop()
+                self._retrieval = None
+
+            self._active_name = protocol
+            self._last_switch = datetime.now(UTC)
+            self._primary_healthy_since = None
+            self._start_retrieval(protocol)
         notify_register_update(self.hass, self, ACTIVE_PROTOCOL_REGISTER, protocol)
 
     # --- failover ------------------------------------------------------------------

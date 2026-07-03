@@ -14,7 +14,10 @@ from custom_components.solisconnect.data.enums import DataType
 from custom_components.solisconnect.sensor_data.cloud_mapping import (
     CLOUD_CID_MAP,
     CLOUD_INPUT_MAP,
+    TOU_SWITCH_CIDS_BY_BIT,
+    TOU_TIME_PAIR_TO_CID,
     CloudFieldMapping,
+    cid_msg_from_words,
     encode_cid_value,
     encode_engineering_value,
     registers_covered,
@@ -172,9 +175,86 @@ def test_cid_values_encode_to_register_words():
     assert encode_cid_value(CLOUD_CID_MAP[160], "not_a_number") is None
 
 
+def test_tou_v2_time_cid_encodes_to_hour_minute_registers():
+    assert encode_cid_value(CLOUD_CID_MAP[5946], "09:30-10:45") == {
+        43711: 9,
+        43712: 30,
+        43713: 10,
+        43714: 45,
+    }
+    assert encode_cid_value(CLOUD_CID_MAP[5946], "25:00-10:00") is None
+
+
+def test_tou_v2_time_cid_accepts_lenient_cloud_formats():
+    # Single-digit hours/minutes and whitespace around the dash must parse
+    assert encode_cid_value(CLOUD_CID_MAP[5946], "7:5-9:30") == {
+        43711: 7,
+        43712: 5,
+        43713: 9,
+        43714: 30,
+    }
+    assert encode_cid_value(CLOUD_CID_MAP[5946], " 09:30 - 10:45 ") == {
+        43711: 9,
+        43712: 30,
+        43713: 10,
+        43714: 45,
+    }
+    # Out-of-range values still rejected after lenient shape matching
+    assert encode_cid_value(CLOUD_CID_MAP[5946], "09:75-10:00") is None
+    assert encode_cid_value(CLOUD_CID_MAP[5946], "garbage") is None
+
+
+def test_tou_v2_time_cid_empty_slot_decodes_to_zeros():
+    # Unset/disabled slots must publish 00:00-00:00 instead of silently never updating
+    assert encode_cid_value(CLOUD_CID_MAP[5946], "") == {
+        43711: 0,
+        43712: 0,
+        43713: 0,
+        43714: 0,
+    }
+    assert encode_cid_value(CLOUD_CID_MAP[5946], "0") == {
+        43711: 0,
+        43712: 0,
+        43713: 0,
+        43714: 0,
+    }
+    assert encode_cid_value(CLOUD_CID_MAP[5946], None) == {
+        43711: 0,
+        43712: 0,
+        43713: 0,
+        43714: 0,
+    }
+
+
+def test_tou_v2_time_registers_encode_to_cid_value():
+    mapping = TOU_TIME_PAIR_TO_CID[(43711, 43712)]
+    assert mapping.cid == 5946
+    assert cid_msg_from_words(mapping, [9, 30, 10, 45]) == "09:30-10:45"
+    assert cid_msg_from_words(mapping, [24, 0, 10, 0]) is None
+
+
+def test_tou_v2_switch_cids_decode_to_bit_values():
+    assert TOU_SWITCH_CIDS_BY_BIT[0] == 5916
+    assert TOU_SWITCH_CIDS_BY_BIT[11] == 5927
+    assert CLOUD_CID_MAP[5916].merge_register_bit == 0
+    assert CLOUD_CID_MAP[5927].merge_register_bit == 11
+    assert encode_cid_value(CLOUD_CID_MAP[5916], "1") == {43707: 1}
+    assert encode_cid_value(CLOUD_CID_MAP[5916], "0") == {43707: 0}
+
+
+def test_tou_v2_current_voltage_cids_apply_register_multipliers():
+    assert encode_cid_value(CLOUD_CID_MAP[5948], "12") == {43709: 120}
+    assert cid_msg_from_words(CLOUD_CID_MAP[5948], [120]) == "12"
+    assert encode_cid_value(CLOUD_CID_MAP[5947], "52.4") == {43710: 524}
+    assert cid_msg_from_words(CLOUD_CID_MAP[5947], [524]) == "52.4"
+
+
 def test_registers_covered_includes_inputs_and_cids():
     covered = registers_covered()
     assert 33035 in covered  # eToday
     assert 33135 in covered  # battery direction (custom encoder)
     assert 43110 in covered  # cid 636
+    assert 43707 in covered  # TOU V2 switch bitfield
+    assert 43711 in covered  # TOU V2 time slot registers
+    assert 43791 in covered  # TOU V2 final discharge end minute
     assert 33022 not in covered  # RTC deliberately unmapped

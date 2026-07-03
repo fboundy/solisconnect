@@ -2,13 +2,21 @@
 
 ## Description
 
-SolisConnect for Home Assistant is a streamlined solution to connect your Solis inverter with Home Assistant. This integration was inspired by [fboundy's ha_solis_modbus](https://github.com/fboundy/ha_solis_modbus/tree/main). However, it enhances the native Modbus integration in Home Assistant by consolidating multiple register queries into single calls, eliminating unnecessary overhead.
+SolisConnect is a Home Assistant custom integration for Solis and compatible inverters. It can poll and control an inverter over local Modbus, the SolisCloud API, or a combined Modbus + SolisCloud setup that keeps one shared Home Assistant device and entity set.
+
+The integration stores protocol data in the same register cache, so entities do not duplicate when you add cloud support. Local Modbus remains the broadest and fastest path; SolisCloud is useful when local access is unavailable or as a backup protocol.
+
+## Credits and Acknowledgements
+
+SolisConnect started as a fork of [Pho3niX90/solis_modbus](https://github.com/Pho3niX90/solis_modbus), which provides the local Modbus foundation this integration is built on. Many thanks to Pho3niX90 and the solis_modbus contributors.
+
+The SolisCloud API support was framed with reference to these projects:
+
+- [mkuthan/solis-cloud-control](https://github.com/mkuthan/solis-cloud-control) — Solis Cloud Controls: control CID behaviour, TOU V2 timed-slot handling, and `old_value`/`yuanzhi` write semantics.
+- [hultenvp/solis-sensor](https://github.com/hultenvp/solis-sensor) — SolisCloud API access patterns and sensor data handling.
+
 ## Documentation
 https://solisconnect.readthedocs.io/
-
-## Solis cloud
-You will lose access, unless you use a waveshare device. You will still have the option to disable the modbus, when updates are required.
-https://github.com/fboundy/solisconnect/discussions/154
 
 ## Installation
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fboundy&repository=solisconnect&category=integration)
@@ -30,7 +38,9 @@ To install SolisConnect, follow these steps:
 Whilst the solis inverters do provide total sensors for today, yesterday, month and year. I highly suggest to create a utility meter in HA, as a time difference between HA and Solis might have the values reset before midnight, causing issues in charts.
 
 ## Manual Installation
-1. Copy the "solisconnect" folder into your "custom_components" folder
+1. Copy `custom_components/solisconnect` into your Home Assistant `custom_components` folder.
+2. Restart Home Assistant.
+3. Add the integration from **Settings** -> **Devices & services**.
 
 ## Setup
 1. Navigate to Settings -> Devices & Services
@@ -40,26 +50,41 @@ Whilst the solis inverters do provide total sensors for today, yesterday, month 
 
 ### Configuration
 **Connection Type**:
-- **TCP (WiFi Dongle)**: Use for Data Logging Sticks (DLS) or WiFi dongles. Requires IP and Port (Default 502).
-- **Serial (RS485)**: Use for direct USB-RS485 connection. Requires Serial Port path.
+- **TCP (WiFi Dongle)**: Use for local Modbus over a data logging stick, WiFi dongle, or Ethernet bridge. Requires host/IP and port. Default port is `502`.
+- **Serial (RS485)**: Use for direct local Modbus over USB-RS485. Requires serial port path and serial settings.
 - **SolisCloud API**: Uses SolisCloud API key credentials. Polling is slower than local Modbus, but works when local Modbus is unavailable.
 - **Modbus + SolisCloud**: Creates one shared device/entity set with either automatic failover or a manual active-protocol selector.
+
+Required fields depend on the protocol:
+- Modbus requires inverter model, inverter serial number, slave address, and TCP or serial connection details.
+- SolisCloud requires SolisCloud key ID, key secret, plant ID, and either a serial number or enough account metadata for the integration to resolve the inverter from the plant list.
+- Dual protocol setup collects Modbus details first, then SolisCloud details, then asks whether failover or manual protocol selection should be used.
 
 ### Protocol Support
 | Mode | Sensor polling | Control writes | Notes |
 | --- | --- | --- | --- |
 | TCP/Serial Modbus | Full local register set | Full mapped register writes | Fastest and preferred where local access is reliable. |
-| SolisCloud API | Mapped cloud detail fields and verified control CIDs | Verified CIDs only: storage mode, backup SOC, over-discharge SOC, force-charge SOC, feed-in limit | Cloud data updates every few minutes and unmapped cloud-only sensors are marked unavailable. |
-| Modbus + SolisCloud failover | One protocol polls at a time; automatic switch on health loss | Active protocol first, then healthy backup where possible | Primary can be Modbus or cloud. |
-| Modbus + SolisCloud manual | One protocol polls at a time, selected by the Active Protocol entity | Active protocol first, then healthy backup where possible | Useful when maintenance or network conditions make one transport preferable. |
+| SolisCloud API | Mapped cloud detail fields and verified control CIDs | Verified CIDs only: storage mode, backup SOC, over-discharge SOC, force-charge SOC, feed-in limit, TOU V2 timed slots | Cloud data updates every few minutes. Unmapped cloud-only sensors are marked unavailable instead of showing stale values. |
+| Modbus + SolisCloud failover | One protocol polls at a time; automatic switch on health loss | Active protocol first, then healthy backup where possible | Primary can be Modbus or cloud. The standby protocol is idle until needed. |
+| Modbus + SolisCloud manual | One protocol polls at a time, selected by the Active Protocol entity | Active protocol first, then healthy backup where possible | Useful for maintenance windows or unreliable network conditions. |
 
 Cloud setup derives the closest supported inverter model from SolisCloud metadata where possible. If SolisCloud identifies the model, that value is used to avoid choosing a sensor map that does not match the inverter.
+
+Home Assistant only allows one `iot_class` value in the manifest. SolisConnect is marked `local_polling` because local Modbus is still the primary integration class, even though SolisCloud-only and dual-protocol entries can use a cloud API.
+
+### SolisCloud limits
+- SolisCloud uses the same entity definitions as Modbus by mapping cloud fields and CIDs into the shared register cache.
+- Cloud-only mode currently covers a limited set of inverter detail fields and verified control CIDs for storage mode (`636`), backup/reserved SOC (`157`), over-discharge SOC (`158`), force-charge SOC (`160`), feed-in limit (`696`), and TOU V2 timed slots (`5916-5987`).
+- TOU V2 timed-slot CIDs map into the local `43707-43791` register model, including the `43707` slot-enable bitfield and cloud time strings such as `HH:MM-HH:MM`. Automatic gating from CID `6798` (`0xAA55`) is still pending, so unsupported inverters may reject those cloud controls.
+- Cloud writes read the old CID value, send the control request, update Home Assistant optimistically, then verify after the cloud state catches up. If verification does not match, the integration restores device truth in the cache.
+- The SolisCloud API is rate-limited by the integration. Avoid running another cloud integration against the same key if you are seeing slow or failed cloud updates.
+- If older debug logs captured SolisCloud credentials before redaction was added, rotate the SolisCloud key secret and clear old logs.
 
 **Inverter Serial**: (Required)
 - Enter your inverter's serial number. This is now **mandatory** for generating unique entity IDs and ensuring configuration stability.
 
 **Poll Interval**:
-- Customize how frequently sensors update. Faster polling provides more real-time data but increases Modbus load.
+- Customize how frequently sensors update. Faster local polling provides more real-time data but increases Modbus load. SolisCloud polling should stay slower because cloud updates and control verification lag behind local reads.
 
 ### Version 4.0+ Migration (Important)
 As of version 4.0+, the integration uses the **Inverter Serial Number** to generate unique IDs for all entities.
@@ -72,7 +97,7 @@ As of version 4.0+, the integration uses the **Inverter Serial Number** to gener
 **Deprecated Settings**:
 - **Identification**: This field has been removed from the setup form. If you previously used it, the integration will still read it internally to migrate your old entities, but it is no longer user-configurable.
 
-`Connection Type`: S2 is the default option, only select waveshare if you are using a waveshare device, and some sensors are higher than normal, see here https://solisconnect.readthedocs.io/en/latest/sensors.html#waveshare
+`Connection Type`: S2 is the default Modbus dongle option. Only select Waveshare if you are using a Waveshare device and some sensors are higher than normal. See https://solisconnect.readthedocs.io/en/latest/sensors.html#waveshare
 
 # [JK BMS](https://github.com/Pho3niX90/jk-bms-card)
 Get the card here : https://github.com/Pho3niX90/jk-bms-card
@@ -291,6 +316,17 @@ Solis and equivalent Axitec, Zonneplan inverters
 - Waveshare
 
 ## Troubleshooting
+### Logs and diagnostics
+Use the Home Assistant UI diagnostics download when reporting SolisConnect setup/runtime issues. The diagnostics output redacts configuration secrets and includes protocol state, active protocol, and cloud mapping counts.
+
+On Home Assistant OS/Supervised systems, live logs are available with:
+
+```bash
+ha core logs
+```
+
+If you also run the separate `hultenvp/solis-sensor` cloud integration, log lines from `custom_components.solis` belong to that integration, not SolisConnect. Running both integrations with the same SolisCloud key can increase cloud `atRead` traffic.
+
 ### Restoring Sensor History
 If a sensor's entity ID changes (e.g., during migration) and you lose its history, you can manually restore it using Home Assistant's statistics tool:
 

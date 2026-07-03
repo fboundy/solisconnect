@@ -1,5 +1,6 @@
 """Stage 6: dual-protocol orchestration — manual switching, failover, write routing."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -170,6 +171,42 @@ async def test_write_routes_to_active_with_fallback(hass):
     hub.modbus.connected = MagicMock(return_value=True)
     await hub.async_write_holding_register(43000, 26)
     hub.modbus.async_write_holding_register.assert_awaited_once_with(43000, 26)
+
+
+async def test_concurrent_switches_are_serialized(hass):
+    """Two overlapping async_set_active calls must not stop/start retrievals twice."""
+    hub = _hub(hass, PROTO_BOTH_MANUAL)
+    modbus_patch, cloud_patch = _patch_retrievals()
+    with modbus_patch as modbus_retrieval, cloud_patch as cloud_retrieval:
+
+        async def slow_stop():
+            await asyncio.sleep(0.05)
+
+        modbus_retrieval.return_value.async_stop = AsyncMock(side_effect=slow_stop)
+        cloud_retrieval.return_value.async_stop = AsyncMock()
+        await hub.async_start()
+
+        await asyncio.gather(
+            hub.async_set_active(PROTOCOL_CLOUD, reason="select entity"),
+            hub.async_set_active(PROTOCOL_CLOUD, reason="health tick"),
+        )
+
+        # The second call became a no-op inside the lock: one stop, one new retrieval
+        modbus_retrieval.return_value.async_stop.assert_awaited_once()
+        assert cloud_retrieval.call_count == 1
+        assert hub.active_protocol == PROTOCOL_CLOUD
+
+        await hub.async_stop()
+
+
+async def test_write_falls_back_from_modbus_to_cloud(hass):
+    """A failing Modbus write raises HomeAssistantError, which routes the write to healthy cloud."""
+    hub = _hub(hass, PROTO_BOTH_FAILOVER)
+    hub._active_name = PROTOCOL_MODBUS
+
+    hub.modbus.async_write_holding_register = AsyncMock(side_effect=HomeAssistantError("write failed"))
+    await hub.async_write_holding_register(43110, 33)
+    hub.cloud.async_write_holding_register.assert_awaited_once_with(43110, 33)
 
 
 async def test_write_fallback_requires_healthy_other(hass):

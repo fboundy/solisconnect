@@ -15,4 +15,5 @@ Table of Contents
    :maxdepth: 2
    :caption: Advanced
 
+   protocols.md
    migration.md
