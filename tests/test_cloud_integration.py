@@ -248,9 +248,15 @@ async def test_migration_v3_to_v4_sets_modbus_only(hass: HomeAssistant):
 
 
 async def test_config_flow_cloud_branch_creates_entry(hass: HomeAssistant):
-    with patch(
-        "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
-        new=AsyncMock(return_value=[{"id": "1", "sn": "sn999", "productModel": "3102"}]),
+    with (
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+            new=AsyncMock(return_value=[{"id": "1", "sn": "sn999", "productModel": "3102"}]),
+        ),
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_detail",
+            new=AsyncMock(return_value={"hmiVersionAll": "4B00"}),
+        ),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         assert result["type"] == "form" and result["step_id"] == "user"
@@ -277,6 +283,7 @@ async def test_config_flow_cloud_branch_creates_entry(hass: HomeAssistant):
         assert result["data"]["model"] == "S5-EH1P"
         assert result["data"][CONF_PROTOCOL_MODE] == PROTO_CLOUD_ONLY
         assert result["title"] == "Solis: SN999 (Cloud)"
+        assert result["data"]["has_v2"] is True  # hmiVersionAll "4B00" meets the V2 threshold
 
 
 async def test_config_flow_cloud_bad_credentials_shows_error(hass: HomeAssistant):
@@ -302,9 +309,15 @@ async def test_reconfigure_cloud_entry_uses_cloud_form(hass: HomeAssistant):
     entry = _cloud_entry()
     entry.add_to_hass(hass)
 
-    with patch(
-        "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
-        new=AsyncMock(return_value=[{"id": "CLOUDID1", "sn": SERIAL}]),
+    with (
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+            new=AsyncMock(return_value=[{"id": "CLOUDID1", "sn": SERIAL}]),
+        ),
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_detail",
+            new=AsyncMock(return_value={}),
+        ),
     ):
         result = await entry.start_reconfigure_flow(hass)
         assert result["type"] == "form"
@@ -329,10 +342,52 @@ async def test_reconfigure_cloud_entry_uses_cloud_form(hass: HomeAssistant):
         assert entry.data[CONF_CLOUD_INVERTER_ID] == "CLOUDID1"
 
 
+async def test_reconfigure_cloud_entry_hmi_version_overrides_has_v2(hass: HomeAssistant):
+    """Issue #20: reconfiguring a cloud-only entry also picks up HMI-based V2 detection."""
+    entry = _cloud_entry()
+    entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+            new=AsyncMock(return_value=[{"id": "CLOUDID1", "sn": SERIAL}]),
+        ),
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_detail",
+            new=AsyncMock(return_value={"hmiVersionAll": "4B00"}),
+        ),
+    ):
+        result = await entry.start_reconfigure_flow(hass)
+
+        with (
+            patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+            patch("custom_components.solisconnect.async_unload_entry", return_value=True),
+        ):
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"],
+                {
+                    CONF_CLOUD_KEY_ID: "kid2",
+                    CONF_CLOUD_KEY_SECRET: "ksecret2",
+                    CONF_CLOUD_PLANT_ID: "plant1",
+                    CONF_INVERTER_SERIAL: SERIAL,
+                    "model": "S6-EH1P",
+                    "has_v2": False,  # form choice; the detected "4B00" should override it
+                },
+            )
+        assert result["type"] == "abort" and result["reason"] == "reconfigure_successful"
+        assert entry.data["has_v2"] is True
+
+
 async def test_config_flow_cloud_multiple_inverters_requires_serial(hass: HomeAssistant):
-    with patch(
-        "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
-        new=AsyncMock(return_value=[{"id": "1", "sn": "SNA"}, {"id": "2", "sn": "SNB"}]),
+    with (
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+            new=AsyncMock(return_value=[{"id": "1", "sn": "SNA"}, {"id": "2", "sn": "SNB"}]),
+        ),
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_detail",
+            new=AsyncMock(return_value={}),
+        ),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CONNECTION_TYPE: CONN_TYPE_CLOUD})
@@ -370,6 +425,10 @@ async def test_dual_flow_cloud_model_overrides_wrong_modbus_model(hass: HomeAssi
             "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
             new=AsyncMock(return_value=[{"id": "1", "sn": "sn999", "productModel": "3102"}]),
         ),
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_detail",
+            new=AsyncMock(return_value={}),
+        ),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CONNECTION_TYPE: CONN_TYPE_BOTH})
@@ -405,3 +464,6 @@ async def test_dual_flow_cloud_model_overrides_wrong_modbus_model(hass: HomeAssi
         assert result["data"]["model"] == "S5-EH1P"
         assert result["data"][CONF_CLOUD_DETECTED_MODEL] == "S5-EH1P"
         assert result["data"][CONF_PROTOCOL_MODE] == PROTO_BOTH_FAILOVER
+        # HMI read (register 33002) returned [1] via the blanket async_read_input_register
+        # patch, well below the V2 threshold -> overrides the user's has_v2=True to False.
+        assert result["data"]["has_v2"] is False
