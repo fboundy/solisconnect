@@ -245,15 +245,31 @@ def get_controller_from_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     return hass.data[DOMAIN][CONTROLLER].get(config_entry.entry_id)
 
 
-def get_controller(hass: HomeAssistant, host: str, slave: int = 1):
+def get_controller(hass: HomeAssistant, host: str | None = None, slave: int = 1, serial: str | None = None):
     """
-    Search for a controller matching the host and slave ID.
-    Used by services (write_holding_register) that only know the IP/Host.
+    Find a stored controller (a SolisInverterHub, per config entry) by inverter serial or
+    by its configured Modbus host/slave. Used by services (write_holding_register) that
+    only know a target host or serial.
+
+    Serial is protocol-stable and preferred: a hub's `host`/`device_id` properties delegate
+    to whichever protocol is currently active (e.g. the literal string "soliscloud" while
+    cloud is active), so host/slave matching instead reads the hub's `.modbus` sub-controller
+    directly, which always reflects its real configured Modbus link regardless of which
+    protocol is currently active.
     """
     for controller in hass.data[DOMAIN][CONTROLLER].values():
-        # Check if this controller matches the requested host and slave
-        # Use getattr to be safe if controller hasn't fully initialized
-        if getattr(controller, "host", None) == host and getattr(controller, "device_id", 0) == slave:
+        if serial is not None:
+            if getattr(controller, "serial_number", None) == serial:
+                return controller
+            continue
+        modbus = getattr(controller, "modbus", None)
+        if modbus is not None:
+            configured_host = getattr(modbus, "host", None)
+            configured_slave = getattr(modbus, "device_id", None)
+        else:
+            configured_host = getattr(controller, "host", None)
+            configured_slave = getattr(controller, "device_id", None)
+        if configured_host == host and configured_slave == slave:
             return controller
     return None
 
