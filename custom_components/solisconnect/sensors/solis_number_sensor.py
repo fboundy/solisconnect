@@ -125,7 +125,7 @@ class SolisNumberEntity(RestoreNumber, NumberEntity):
                 self._attr_native_value = new_value
                 self.schedule_update_ha_state()
 
-    def set_native_value(self, value):
+    async def async_set_native_value(self, value):
         """Update the current value."""
         if self._attr_native_value == value:
             return
@@ -139,8 +139,9 @@ class SolisNumberEntity(RestoreNumber, NumberEntity):
             register_value = max(-32768, min(32767, register_value))
             register_value &= 0xFFFF
 
-        # Write to Modbus controller
-        self._hass.create_task(self.base_sensor.controller.async_write_holding_register(self._write_register, int(register_value)))
+        # Await the write so a failure raises to the caller instead of silently
+        # optimistic-updating the entity for a write that never happened.
+        await self.base_sensor.controller.async_write_holding_register(self._write_register, int(register_value))
 
         self._attr_native_value = value
         self.schedule_update_ha_state()

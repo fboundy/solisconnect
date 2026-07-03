@@ -53,7 +53,7 @@ async def test_solis_number_entity(hass, mock_base_sensor, mock_controller):
 
     # Test setting value
     entity.schedule_update_ha_state = MagicMock()
-    entity.set_native_value(60)
+    await entity.async_set_native_value(60)
     await hass.async_block_till_done()
     mock_controller.async_write_holding_register.assert_called_with(100, 60)
 
@@ -102,7 +102,7 @@ async def test_solis_number_entity_updates(hass, mock_controller):
     # Coverage report showed missing lines in write logic mostly.
 
     entity.schedule_update_ha_state = MagicMock()
-    entity.set_native_value(55)
+    await entity.async_set_native_value(55)
     await hass.async_block_till_done()
     # write_register is None, so return.
     assert not mock_controller.async_write_holding_register.called

@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from custom_components.solisconnect.const import CONTROLLER, REGISTER, SLAVE, VALUE
 from custom_components.solisconnect.sensors.solis_binary_sensor import (
     SolisBinaryEntity,
     set_bit,
@@ -144,3 +145,36 @@ async def test_cold_cache_failed_live_read_skips_write(mock_hass, controller):
 
         controller.async_read_holding_register.assert_awaited_once_with(43110, 1)
         controller.async_write_holding_register.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_modbus_update_pushes_state(mock_hass, controller):
+    """Bug #13: a register update must push entity state immediately, not just rely on polling."""
+    entity_def = {
+        "register": 43110,
+        "bit_position": 1,
+        "name": "TOU (Self-Use)",
+    }
+    entity = SolisBinaryEntity(mock_hass, controller, entity_def)
+    entity.schedule_update_ha_state = MagicMock()
+
+    data = {REGISTER: 43110, VALUE: set_bit(0, 1, True), CONTROLLER: str(controller.host), SLAVE: controller.device_id}
+    entity.handle_modbus_update(data)
+
+    entity.schedule_update_ha_state.assert_called_once()
+    assert entity.is_on is True
+
+
+@pytest.mark.asyncio
+async def test_handle_modbus_update_pushes_state_for_connection_switch(mock_hass, controller):
+    """Register 5 (connection enable switch) must also push state on update."""
+    entity_def = {"register": 5, "name": "Connection Enabled"}
+    controller.enabled = True
+    entity = SolisBinaryEntity(mock_hass, controller, entity_def)
+    entity.schedule_update_ha_state = MagicMock()
+
+    data = {REGISTER: 5, VALUE: 1, CONTROLLER: str(controller.host), SLAVE: controller.device_id}
+    entity.handle_modbus_update(data)
+
+    entity.schedule_update_ha_state.assert_called_once()
+    assert entity.is_on is True
