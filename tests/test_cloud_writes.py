@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.solis_modbus.cloud.api_client import SolisCloudApiError
-from custom_components.solis_modbus.cloud.cloud_controller import SolisCloudController
-from custom_components.solis_modbus.const import DOMAIN, VALUES
-from custom_components.solis_modbus.sensor_data.cloud_mapping import CLOUD_CID_MAP, cid_msg_from_words
+from custom_components.solisconnect.cloud.api_client import SolisCloudApiError
+from custom_components.solisconnect.cloud.cloud_controller import SolisCloudController
+from custom_components.solisconnect.const import DOMAIN, VALUES
+from custom_components.solisconnect.sensor_data.cloud_mapping import CLOUD_CID_MAP, cid_msg_from_words
 
 SERIAL = "CLOUDSN1"
 
@@ -70,7 +70,7 @@ async def test_write_proceeds_without_old_value(hass, controller):
 
 async def test_verify_confirms_write(hass, controller):
     controller.api.async_at_read = AsyncMock(return_value="33")
-    with patch("custom_components.solis_modbus.cloud.cloud_controller.asyncio.sleep", new=AsyncMock()):
+    with patch("custom_components.solisconnect.cloud.cloud_controller.asyncio.sleep", new=AsyncMock()):
         await controller._verify_write(CLOUD_CID_MAP[636], [33])
     # Verified on first read: single verify read
     assert controller.api.async_at_read.await_count == 1
@@ -79,7 +79,7 @@ async def test_verify_confirms_write(hass, controller):
 async def test_verify_mismatch_restores_device_truth(hass, controller):
     """If the device reports a different value after the write, the cache must show the device's value."""
     controller.api.async_at_read = AsyncMock(return_value="35")  # device kept old value
-    with patch("custom_components.solis_modbus.cloud.cloud_controller.asyncio.sleep", new=AsyncMock()):
+    with patch("custom_components.solisconnect.cloud.cloud_controller.asyncio.sleep", new=AsyncMock()):
         await controller._verify_write(CLOUD_CID_MAP[636], [33])
 
     assert controller.api.async_at_read.await_count == 2  # retried once

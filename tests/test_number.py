@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.solis_modbus.sensors.solis_base_sensor import SolisBaseSensor
-from custom_components.solis_modbus.sensors.solis_number_sensor import SolisNumberEntity
+from custom_components.solisconnect.sensors.solis_base_sensor import SolisBaseSensor
+from custom_components.solisconnect.sensors.solis_number_sensor import SolisNumberEntity
 
 
 @pytest.fixture

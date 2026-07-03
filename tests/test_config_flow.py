@@ -5,7 +5,7 @@ from homeassistant import config_entries, data_entry_flow
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.solis_modbus.const import CONN_TYPE_TCP, DOMAIN
+from custom_components.solisconnect.const import CONN_TYPE_TCP, DOMAIN
 
 
 @pytest.fixture(autouse=True)
@@ -18,11 +18,11 @@ async def test_flow_user_success(hass: HomeAssistant):
     """Test user initialized flow with success."""
     with (
         patch(
-            "custom_components.solis_modbus.modbus_controller.ModbusController.connect",
+            "custom_components.solisconnect.modbus_controller.ModbusController.connect",
             return_value=True,
         ) as mock_connect,
         patch(
-            "custom_components.solis_modbus.async_setup_entry",
+            "custom_components.solisconnect.async_setup_entry",
             return_value=True,
         ) as mock_setup_entry,
     ):
@@ -78,7 +78,7 @@ async def test_flow_user_success(hass: HomeAssistant):
 async def test_flow_user_connection_error(hass: HomeAssistant):
     """Test user initialized flow with connection error."""
     with patch(
-        "custom_components.solis_modbus.modbus_controller.ModbusController.connect",
+        "custom_components.solisconnect.modbus_controller.ModbusController.connect",
         return_value=False,
     ):
         # Step 1: Select connection type
@@ -125,7 +125,7 @@ async def test_flow_user_duplicates(hass: HomeAssistant):
     entry.add_to_hass(hass)
 
     with patch(
-        "custom_components.solis_modbus.modbus_controller.ModbusController.connect",
+        "custom_components.solisconnect.modbus_controller.ModbusController.connect",
         return_value=True,
     ):
         # Step 1: Select connection type

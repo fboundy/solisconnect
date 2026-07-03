@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from homeassistant.const import CONF_HOST, CONF_PORT
 
-from custom_components.solis_modbus import async_migrate_entry
-from custom_components.solis_modbus.const import CONF_INVERTER_SERIAL, DOMAIN
+from custom_components.solisconnect import async_migrate_entry
+from custom_components.solisconnect.const import CONF_INVERTER_SERIAL, DOMAIN
 
 
 @pytest.mark.asyncio
@@ -19,8 +19,8 @@ class TestMigration:
         self.registry = MagicMock()
 
         # Test Data
-        self.old_uid = "solis_modbus_192.168.1.10_solis_modbus_inverter_active_power"
-        self.new_uid = "solis_modbus_SN123456_solis_modbus_inverter_active_power"
+        self.old_uid = "solisconnect_192.168.1.10_solisconnect_inverter_active_power"
+        self.new_uid = "solisconnect_SN123456_solisconnect_inverter_active_power"
 
     @patch("homeassistant.helpers.entity_registry.async_get")
     async def test_migrate_happy_path(self, mock_get_registry):

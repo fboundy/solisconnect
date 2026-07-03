@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
 
-from custom_components.solis_modbus.const import DOMAIN
-from custom_components.solis_modbus.helpers import register_cache_key, unique_id_generator
+from custom_components.solisconnect.const import DOMAIN
+from custom_components.solisconnect.helpers import register_cache_key, unique_id_generator
 
 
 class TestUniqueIdGenerator(unittest.TestCase):

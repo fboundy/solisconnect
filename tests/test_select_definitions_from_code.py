@@ -2,9 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.solis_modbus.const import CONTROLLER, DOMAIN
-from custom_components.solis_modbus.data.enums import InverterType
-from custom_components.solis_modbus.select import async_setup_entry
+from custom_components.solisconnect.const import CONTROLLER, DOMAIN
+from custom_components.solisconnect.data.enums import InverterType
+from custom_components.solisconnect.select import async_setup_entry
 
 
 @pytest.mark.asyncio

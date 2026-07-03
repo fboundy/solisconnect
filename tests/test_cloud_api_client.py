@@ -7,7 +7,7 @@ from aiohttp import ClientSession, TCPConnector
 from aiohttp.resolver import ThreadedResolver
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker, AiohttpClientMockResponse
 
-from custom_components.solis_modbus.cloud.api_client import (
+from custom_components.solisconnect.cloud.api_client import (
     API_BASE_URL,
     MAX_ATTEMPTS,
     RESOURCE_AT_READ,
@@ -121,7 +121,7 @@ async def test_retry_then_succeed(aioclient_mock: AiohttpClientMocker, client_fa
 
     aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_AT_READ}", side_effect=_respond)
     client = client_factory()
-    with patch("custom_components.solis_modbus.cloud.api_client.asyncio.sleep"):
+    with patch("custom_components.solisconnect.cloud.api_client.asyncio.sleep"):
         value = await client.async_at_read(SN, 636)
     assert value == "35"
     assert aioclient_mock.call_count == 2
@@ -130,7 +130,7 @@ async def test_retry_then_succeed(aioclient_mock: AiohttpClientMocker, client_fa
 async def test_gives_up_after_max_attempts(aioclient_mock: AiohttpClientMocker, client_factory):
     aioclient_mock.post(f"{API_BASE_URL}{RESOURCE_AT_READ}", status=502, json={})
     client = client_factory()
-    with patch("custom_components.solis_modbus.cloud.api_client.asyncio.sleep"), pytest.raises(SolisCloudApiError, match="failed after"):
+    with patch("custom_components.solisconnect.cloud.api_client.asyncio.sleep"), pytest.raises(SolisCloudApiError, match="failed after"):
         await client.async_at_read(SN, 636)
     assert aioclient_mock.call_count == MAX_ATTEMPTS
 

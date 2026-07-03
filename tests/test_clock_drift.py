@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
-from custom_components.solis_modbus.const import DOMAIN, DRIFT_COUNTER
-from custom_components.solis_modbus.helpers import clock_drift_test
+from custom_components.solisconnect.const import DOMAIN, DRIFT_COUNTER
+from custom_components.solisconnect.helpers import clock_drift_test
 
 NOW = datetime(2026, 6, 13, 12, 30, 15, tzinfo=UTC)
 
@@ -22,7 +22,7 @@ def make_controller(connected=True):
 
 
 def call(hass, controller, year, month, day, hours, minutes, seconds, now=NOW):
-    with patch("custom_components.solis_modbus.helpers.dt_utils") as dt:
+    with patch("custom_components.solisconnect.helpers.dt_utils") as dt:
         dt.now.return_value = now
         return clock_drift_test(hass, controller, year, month, day, hours, minutes, seconds)
 

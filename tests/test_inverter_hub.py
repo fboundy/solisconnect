@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.solis_modbus.const import (
+from custom_components.solisconnect.const import (
     PROTO_BOTH_FAILOVER,
     PROTO_BOTH_MANUAL,
     PROTOCOL_CLOUD,
     PROTOCOL_MODBUS,
 )
-from custom_components.solis_modbus.inverter_hub import (
+from custom_components.solisconnect.inverter_hub import (
     MIN_DWELL_SECONDS,
     PRIMARY_RECOVERY_SECONDS,
     SolisInverterHub,
@@ -48,8 +48,8 @@ def _hub(hass, mode, failover_primary=None) -> SolisInverterHub:
 
 def _patch_retrievals():
     return (
-        patch("custom_components.solis_modbus.data_retrieval.DataRetrieval"),
-        patch("custom_components.solis_modbus.cloud.cloud_retrieval.CloudDataRetrieval"),
+        patch("custom_components.solisconnect.data_retrieval.DataRetrieval"),
+        patch("custom_components.solisconnect.cloud.cloud_retrieval.CloudDataRetrieval"),
     )
 
 

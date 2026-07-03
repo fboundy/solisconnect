@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from homeassistant.core import HomeAssistant
 
-from custom_components.solis_modbus.const import (
+from custom_components.solisconnect.const import (
     CONN_TYPE_TCP,
     CONTROLLER,
     DOMAIN,
@@ -15,20 +15,20 @@ from custom_components.solis_modbus.const import (
     VALUE,
     VALUES,
 )
-from custom_components.solis_modbus.controller_base import SolisControllerBase
-from custom_components.solis_modbus.helpers import (
+from custom_components.solisconnect.controller_base import SolisControllerBase
+from custom_components.solisconnect.helpers import (
     controller_scope,
     is_correct_controller,
     register_cache_key,
     register_update_signal,
 )
-from custom_components.solis_modbus.modbus_controller import ModbusController
+from custom_components.solisconnect.modbus_controller import ModbusController
 
 
 def _make_modbus_controller(serial_number=None, host="192.168.1.100", port=502, device_id=1):
     inverter_config = MagicMock()
     inverter_config.model = "Test Model"
-    with patch("custom_components.solis_modbus.modbus_controller.ModbusClientManager"):
+    with patch("custom_components.solisconnect.modbus_controller.ModbusClientManager"):
         return ModbusController(
             hass=MagicMock(),
             connection_type=CONN_TYPE_TCP,
@@ -95,7 +95,7 @@ def test_controller_scope_handles_bare_mocks():
 
 async def test_second_platform_setup_does_not_wipe_cache(hass: HomeAssistant):
     """Regression: a second entry's sensor platform setup must not reset the shared cache."""
-    from custom_components.solis_modbus.sensor import async_setup_entry
+    from custom_components.solisconnect.sensor import async_setup_entry
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][VALUES] = {"SN123|33000": 42}
@@ -106,7 +106,7 @@ async def test_second_platform_setup_does_not_wipe_cache(hass: HomeAssistant):
     controller.sensor_groups = []
     controller.derived_sensors = []
 
-    with patch("custom_components.solis_modbus.sensor.get_controller_from_entry", return_value=controller):
+    with patch("custom_components.solisconnect.sensor.get_controller_from_entry", return_value=controller):
         await async_setup_entry(hass, MagicMock(), MagicMock())
 
     assert hass.data[DOMAIN][VALUES] == {"SN123|33000": 42}

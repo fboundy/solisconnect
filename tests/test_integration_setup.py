@@ -4,7 +4,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.solis_modbus.const import CONTROLLER, DOMAIN
+from custom_components.solisconnect.const import CONTROLLER, DOMAIN
 
 
 @pytest.fixture(autouse=True)
@@ -33,15 +33,15 @@ async def test_setup_entry(hass: HomeAssistant):
     config_entry.add_to_hass(hass)
 
     with (
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.connect", return_value=True),
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.connected", return_value=True),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connected", return_value=True),
         patch(
-            "custom_components.solis_modbus.modbus_controller.ModbusController.async_read_input_register",
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
             return_value=[1, 2, 3],
         ),
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.process_write_queue"),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.process_write_queue"),
         patch(
-            "custom_components.solis_modbus.modbus_controller.ModbusController.async_read_holding_register",
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_holding_register",
             return_value=[1, 2, 3],
         ),
     ):

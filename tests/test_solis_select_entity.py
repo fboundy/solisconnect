@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.solis_modbus.sensors.solis_select_entity import (
+from custom_components.solisconnect.sensors.solis_select_entity import (
     SolisSelectEntity,
     set_bit,
 )
@@ -42,8 +42,8 @@ async def test_set_register_bit_with_uncached_register(mock_hass, mock_controlle
     mock_controller.async_read_holding_register.return_value = [live_value]
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_get", return_value=None),
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=None),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_save"),
     ):
         entity = SolisSelectEntity(mock_hass, mock_controller, {"register": register, "name": "Work Mode", "entities": []})
         await entity.set_register_bit(None, bit_position=0, conflicts_with=None, requires=None)
@@ -60,8 +60,8 @@ async def test_set_register_bit_uncached_failed_read_skips_write(mock_hass, mock
     mock_controller.async_read_holding_register.return_value = None
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_get", return_value=None),
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=None),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_save"),
     ):
         entity = SolisSelectEntity(mock_hass, mock_controller, {"register": register, "name": "Work Mode", "entities": []})
         await entity.set_register_bit(None, bit_position=0, conflicts_with=None, requires=None)
@@ -84,10 +84,10 @@ async def test_set_register_bit_enforces_conflicts_and_requires(mock_hass, mock_
     # 6 and 11 are on
     with (
         patch(
-            "custom_components.solis_modbus.sensors.solis_select_entity.cache_get",
+            "custom_components.solisconnect.sensors.solis_select_entity.cache_get",
             return_value=set_bit(set_bit(0, 6, True), 11, True),
         ),
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_save"),
     ):
         entity = SolisSelectEntity(mock_hass, mock_controller, entity_def)
         await entity.set_register_bit(None, bit_position=0, conflicts_with=(6, 11), requires=None)
@@ -105,8 +105,8 @@ async def test_set_register_bit_writes_when_only_conflict_bits_change(mock_hass,
     cached = set_bit(set_bit(0, 0, True), 6, True)  # target bit 0 already on, conflict bit 6 on
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_get", return_value=cached),
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=cached),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_save"),
     ):
         entity = SolisSelectEntity(mock_hass, mock_controller, {"register": register, "name": "Work Mode", "entities": []})
         await entity.set_register_bit(None, bit_position=0, conflicts_with=(6,), requires=None)
@@ -119,8 +119,8 @@ async def test_set_register_bit_writes_when_only_conflict_bits_change(mock_hass,
 async def test_set_register_bit_with_requires(mock_hass, mock_controller):
     register = 43110
     with (
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_get", return_value=0),
-        patch("custom_components.solis_modbus.sensors.solis_select_entity.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=0),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_save"),
     ):
         entity = SolisSelectEntity(mock_hass, mock_controller, {"register": register, "name": "Work Mode", "entities": []})
 
@@ -149,7 +149,7 @@ async def test_companion_writes_after_on_value_select(mock_hass, mock_controller
         return cached.get(register)
 
     with patch(
-        "custom_components.solis_modbus.sensors.solis_select_entity.cache_get",
+        "custom_components.solisconnect.sensors.solis_select_entity.cache_get",
         side_effect=fake_cache_get,
     ):
         entity = SolisSelectEntity(
@@ -191,7 +191,7 @@ async def test_companion_writes_skip_individual_uncached_registers(mock_hass, mo
         return cached.get(register)
 
     with patch(
-        "custom_components.solis_modbus.sensors.solis_select_entity.cache_get",
+        "custom_components.solisconnect.sensors.solis_select_entity.cache_get",
         side_effect=fake_cache_get,
     ):
         entity = SolisSelectEntity(
@@ -225,7 +225,7 @@ async def test_companion_writes_skipped_when_cache_empty(mock_hass, mock_control
     companion_register = 43282
 
     with patch(
-        "custom_components.solis_modbus.sensors.solis_select_entity.cache_get",
+        "custom_components.solisconnect.sensors.solis_select_entity.cache_get",
         return_value=None,
     ):
         entity = SolisSelectEntity(

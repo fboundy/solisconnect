@@ -1,7 +1,7 @@
 import unittest
 
-from custom_components.solis_modbus.data.enums import DataType
-from custom_components.solis_modbus.sensors.solis_base_sensor import SolisBaseSensor
+from custom_components.solisconnect.data.enums import DataType
+from custom_components.solisconnect.sensors.solis_base_sensor import SolisBaseSensor
 
 
 class MockController:

@@ -10,8 +10,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.solis_modbus.data.enums import DataType
-from custom_components.solis_modbus.sensor_data.cloud_mapping import (
+from custom_components.solisconnect.data.enums import DataType
+from custom_components.solisconnect.sensor_data.cloud_mapping import (
     CLOUD_CID_MAP,
     CLOUD_INPUT_MAP,
     CloudFieldMapping,
@@ -20,8 +20,8 @@ from custom_components.solis_modbus.sensor_data.cloud_mapping import (
     registers_covered,
     unit_factor,
 )
-from custom_components.solis_modbus.sensor_data.hybrid_sensors import hybrid_sensors
-from custom_components.solis_modbus.sensors.solis_base_sensor import SolisBaseSensor
+from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors
+from custom_components.solisconnect.sensors.solis_base_sensor import SolisBaseSensor
 
 
 def _master_entities() -> dict[tuple[int, ...], dict]:

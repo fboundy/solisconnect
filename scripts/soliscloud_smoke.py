@@ -20,7 +20,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from custom_components.solis_modbus.cloud.api_client import SolisCloudApiClient  # noqa: E402
+from custom_components.solisconnect.cloud.api_client import SolisCloudApiClient  # noqa: E402
 
 
 def load_credentials(secrets_path: str) -> dict:

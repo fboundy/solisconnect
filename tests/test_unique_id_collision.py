@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
 
-from custom_components.solis_modbus.data.enums import PollSpeed
-from custom_components.solis_modbus.sensors.solis_base_sensor import SolisSensorGroup
+from custom_components.solisconnect.data.enums import PollSpeed
+from custom_components.solisconnect.sensors.solis_base_sensor import SolisSensorGroup
 
 
 class TestSensorCollision(unittest.TestCase):
@@ -64,7 +64,7 @@ class TestSensorCollision(unittest.TestCase):
         entity_def = {"name": "Status", "unique": "inverter_status", "register": []}
 
         # Simulating __init__.py logic
-        domain = "solis_modbus"
+        domain = "solisconnect"
 
         unique_id_a = f"{domain}_{controller_a.device_serial_number}_{entity_def['unique']}"
         unique_id_b = f"{domain}_{controller_b.device_serial_number}_{entity_def['unique']}"

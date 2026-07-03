@@ -3,9 +3,9 @@
 Version 4.0 introduces a significant change to how Entity Unique IDs are generated, transitioning from a **Host/Port** based system to a **Serial Number** based system. This ensures that your entities (sensors) remain consistent even if your inverter's IP address changes or if you move your database to a new Home Assistant instance.
 
 ## Why the change?
-Previously, unique IDs were generated using the Inverter's IP address (e.g., `solis_modbus_192.168.1.10_active_power`). If you changed your router or used DHCP, a new IP would cause Home Assistant to see all your sensors as "New" devices, breaking your history and dashboards.
+Previously, unique IDs were generated using the Inverter's IP address (e.g., `solisconnect_192.168.1.10_active_power`). If you changed your router or used DHCP, a new IP would cause Home Assistant to see all your sensors as "New" devices, breaking your history and dashboards.
 
-By using the **Serial Number** (e.g., `solis_modbus_SN123ABC_active_power`), the ID remains tied to the physical device.
+By using the **Serial Number** (e.g., `solisconnect_SN123ABC_active_power`), the ID remains tied to the physical device.
 
 ## The Migration Process
 When you upgrade to v4.0+, the integration performs the following checks on startup:

@@ -3,7 +3,7 @@ from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.solis_modbus.const import (
+from custom_components.solisconnect.const import (
     CONN_TYPE_SERIAL,
     CONN_TYPE_TCP,
     DEFAULT_BAUDRATE,
@@ -11,8 +11,8 @@ from custom_components.solis_modbus.const import (
     DEFAULT_PARITY,
     DEFAULT_STOPBITS,
 )
-from custom_components.solis_modbus.data.enums import PollSpeed
-from custom_components.solis_modbus.modbus_controller import ModbusController
+from custom_components.solisconnect.data.enums import PollSpeed
+from custom_components.solisconnect.modbus_controller import ModbusController
 
 
 class TestModbusControllerTCP(IsolatedAsyncioTestCase):
@@ -28,7 +28,7 @@ class TestModbusControllerTCP(IsolatedAsyncioTestCase):
         self.inverter_config.model = "Test Model"
 
         # Create a patcher for ModbusClientManager
-        self.manager_patcher = patch("custom_components.solis_modbus.modbus_controller.ModbusClientManager")
+        self.manager_patcher = patch("custom_components.solisconnect.modbus_controller.ModbusClientManager")
         self.mock_manager_class = self.manager_patcher.start()
         self.mock_manager = MagicMock()
         self.mock_manager_class.get_instance.return_value = self.mock_manager
@@ -206,7 +206,7 @@ class TestModbusControllerSerial(IsolatedAsyncioTestCase):
         self.inverter_config.model = "Test Model"
 
         # Create a patcher for ModbusClientManager
-        self.manager_patcher = patch("custom_components.solis_modbus.modbus_controller.ModbusClientManager")
+        self.manager_patcher = patch("custom_components.solisconnect.modbus_controller.ModbusClientManager")
         self.mock_manager_class = self.manager_patcher.start()
         self.mock_manager = MagicMock()
         self.mock_manager_class.get_instance.return_value = self.mock_manager
@@ -403,7 +403,7 @@ class TestModbusControllerInitialization(unittest.TestCase):
         self.inverter_config.model = "Test Model"
 
         # Patch ModbusClientManager
-        self.manager_patcher = patch("custom_components.solis_modbus.modbus_controller.ModbusClientManager")
+        self.manager_patcher = patch("custom_components.solisconnect.modbus_controller.ModbusClientManager")
         self.mock_manager_class = self.manager_patcher.start()
         self.mock_manager = MagicMock()
         self.mock_manager_class.get_instance.return_value = self.mock_manager
@@ -477,7 +477,7 @@ class TestModbusControllerProperties(unittest.TestCase):
         self.inverter_config.model = "Test Model"
 
         # Patch ModbusClientManager
-        self.manager_patcher = patch("custom_components.solis_modbus.modbus_controller.ModbusClientManager")
+        self.manager_patcher = patch("custom_components.solisconnect.modbus_controller.ModbusClientManager")
         self.mock_manager_class = self.manager_patcher.start()
         self.mock_manager = MagicMock()
         self.mock_manager_class.get_instance.return_value = self.mock_manager

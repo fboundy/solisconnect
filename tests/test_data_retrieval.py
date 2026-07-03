@@ -2,10 +2,10 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.solis_modbus.const import DOMAIN, VALUES
-from custom_components.solis_modbus.data.enums import PollSpeed
-from custom_components.solis_modbus.data_retrieval import DataRetrieval
-from custom_components.solis_modbus.sensors.solis_base_sensor import SolisSensorGroup
+from custom_components.solisconnect.const import DOMAIN, VALUES
+from custom_components.solisconnect.data.enums import PollSpeed
+from custom_components.solisconnect.data_retrieval import DataRetrieval
+from custom_components.solisconnect.sensors.solis_base_sensor import SolisSensorGroup
 
 
 class TestDataRetrieval(unittest.TestCase):
@@ -56,10 +56,10 @@ class TestDataRetrieval(unittest.TestCase):
         self.controller.sensor_groups = [self.fast_group, self.normal_group, self.slow_group, self.once_group]
 
         # Create the DataRetrieval instance (keep patches active for the whole test)
-        self._patcher_track = patch("custom_components.solis_modbus.data_retrieval.async_track_time_interval")
+        self._patcher_track = patch("custom_components.solisconnect.data_retrieval.async_track_time_interval")
         self.mock_track_time = self._patcher_track.start()
         self.addCleanup(self._patcher_track.stop)
-        self._patcher_notify = patch("custom_components.solis_modbus.data_retrieval.notify_register_update")
+        self._patcher_notify = patch("custom_components.solisconnect.data_retrieval.notify_register_update")
         self.mock_notify = self._patcher_notify.start()
         self.addCleanup(self._patcher_notify.stop)
         self.data_retrieval = DataRetrieval(self.hass, self.controller)
@@ -219,7 +219,7 @@ class TestDataRetrieval(unittest.TestCase):
         self.assertEqual(50, self.data_retrieval.spike_filtering(reg, 50))
 
         # Spike check: value 0 should be ignored initially
-        with patch("custom_components.solis_modbus.data_retrieval.cache_get", return_value=50):
+        with patch("custom_components.solisconnect.data_retrieval.cache_get", return_value=50):
             # 1st spike
             self.assertEqual(50, self.data_retrieval.spike_filtering(reg, 0))
             # 2nd spike
@@ -281,7 +281,7 @@ async def test_check_connection_stale_link_forces_reconnect():
     # connected: True on the initial check (zombie link), False after force_close
     controller.connected = MagicMock(side_effect=[True, False])
 
-    with patch("custom_components.solis_modbus.data_retrieval.notify_register_update"):
+    with patch("custom_components.solisconnect.data_retrieval.notify_register_update"):
         await retrieval.check_connection()
 
     controller.force_close.assert_called_once()
@@ -293,7 +293,7 @@ async def test_check_connection_healthy_link_returns_early():
     retrieval, controller = _make_stale_watchdog_fixture(datetime.now(UTC))
     controller.connected = MagicMock(return_value=True)
 
-    with patch("custom_components.solis_modbus.data_retrieval.notify_register_update"):
+    with patch("custom_components.solisconnect.data_retrieval.notify_register_update"):
         await retrieval.check_connection()
 
     controller.force_close.assert_not_called()

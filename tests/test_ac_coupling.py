@@ -1,5 +1,5 @@
-from custom_components.solis_modbus.data.enums import InverterFeature, InverterType
-from custom_components.solis_modbus.data.solis_config import (
+from custom_components.solisconnect.data.enums import InverterFeature, InverterType
+from custom_components.solisconnect.data.solis_config import (
     SOLIS_INVERTERS,
     InverterConfig,
     InverterOptions,
@@ -46,7 +46,7 @@ def test_clone_applies_user_options_and_leaves_templates_untouched():
 
 def test_hybrid_sensors_ac_coupling_requirement():
     """Test that some hybrid sensors require AC_COUPLING feature."""
-    from custom_components.solis_modbus.sensor_data.hybrid_sensors import hybrid_sensors
+    from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors
 
     ac_coupling_groups = [group for group in hybrid_sensors if group.get("feature_requirement") and InverterFeature.AC_COUPLING in group["feature_requirement"]]
 
@@ -71,7 +71,7 @@ def test_parallel_feature_when_option_enabled():
 
 def test_hybrid_sensors_parallel_sync_block_gated():
     """Parallel synchronization result (34243) must only load when PARALLEL is enabled."""
-    from custom_components.solis_modbus.sensor_data.hybrid_sensors import hybrid_sensors
+    from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors
 
     parallel_groups = [group for group in hybrid_sensors if group.get("register_start") == 34243 and group.get("feature_requirement")]
     assert len(parallel_groups) == 1

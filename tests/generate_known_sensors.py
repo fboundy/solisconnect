@@ -5,8 +5,8 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from custom_components.solis_modbus.const import DOMAIN
-from custom_components.solis_modbus.sensor_data.hybrid_sensors import hybrid_sensors, hybrid_sensors_derived
+from custom_components.solisconnect.const import DOMAIN
+from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors, hybrid_sensors_derived
 
 
 def generate_scenario(filename, serial=None, identification=None, host="1.2.3.4"):
@@ -18,7 +18,7 @@ def generate_scenario(filename, serial=None, identification=None, host="1.2.3.4"
     controller.identification = identification
     controller.host = host
 
-    from custom_components.solis_modbus.helpers import unique_id_generator, unique_id_generator_binary
+    from custom_components.solisconnect.helpers import unique_id_generator, unique_id_generator_binary
 
     known_sensors = []
 
@@ -34,10 +34,10 @@ def generate_scenario(filename, serial=None, identification=None, host="1.2.3.4"
         uid = f"{DOMAIN}_{entity['unique']}"
         known_sensors.append(uid)
 
-    from custom_components.solis_modbus.data.solis_config import InverterConfig, InverterType
-    from custom_components.solis_modbus.sensor_data.select_sensors import get_select_sensors
-    from custom_components.solis_modbus.sensor_data.switch_sensors import get_switch_sensors
-    from custom_components.solis_modbus.sensor_data.time_sensors import get_time_sensors
+    from custom_components.solisconnect.data.solis_config import InverterConfig, InverterType
+    from custom_components.solisconnect.sensor_data.select_sensors import get_select_sensors
+    from custom_components.solisconnect.sensor_data.switch_sensors import get_switch_sensors
+    from custom_components.solisconnect.sensor_data.time_sensors import get_time_sensors
 
     config = InverterConfig(model="TEST", type=InverterType.HYBRID, wattage=[5000], phases=[1])
 

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.core import HomeAssistant
 
-from custom_components.solis_modbus.const import DOMAIN
+from custom_components.solisconnect.const import DOMAIN
 
 
 @pytest.fixture
@@ -18,15 +18,15 @@ def mock_controller():
 @pytest.mark.asyncio
 async def test_service_write_holding_register(hass: HomeAssistant, mock_controller):
     """Test solis_write_holding_register service."""
-    from custom_components.solis_modbus.const import CONTROLLER
+    from custom_components.solisconnect.const import CONTROLLER
 
     # Store controller
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][CONTROLLER] = {"1.2.3.4_1": mock_controller}
 
-    with patch("custom_components.solis_modbus.get_controller", return_value=mock_controller):
+    with patch("custom_components.solisconnect.get_controller", return_value=mock_controller):
         # Register the services (requires setting up the integration or manually registering)
-        from custom_components.solis_modbus import async_setup
+        from custom_components.solisconnect import async_setup
 
         await async_setup(hass, {})
 
@@ -39,12 +39,12 @@ async def test_service_write_holding_register(hass: HomeAssistant, mock_controll
 @pytest.mark.asyncio
 async def test_service_write_holding_register_no_host(hass: HomeAssistant, mock_controller):
     """Test solis_write_holding_register service without host (broadcast to all)."""
-    from custom_components.solis_modbus.const import CONTROLLER
+    from custom_components.solisconnect.const import CONTROLLER
 
     # Store controller in hass.data
     hass.data[DOMAIN] = {CONTROLLER: {"1.2.3.4_1": mock_controller}}
 
-    from custom_components.solis_modbus import async_setup
+    from custom_components.solisconnect import async_setup
 
     await async_setup(hass, {})
 
@@ -58,7 +58,7 @@ async def test_service_set_time(hass: HomeAssistant):
     """Test solis_write_time service."""
     from datetime import time
 
-    from custom_components.solis_modbus.const import TIME_ENTITIES
+    from custom_components.solisconnect.const import TIME_ENTITIES
 
     mock_entity = MagicMock()
     mock_entity.entity_id = "time.test_time"
@@ -73,7 +73,7 @@ async def test_service_set_time(hass: HomeAssistant):
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][TIME_ENTITIES] = [mock_entity]
 
-    from custom_components.solis_modbus import async_setup
+    from custom_components.solisconnect import async_setup
 
     await async_setup(hass, {})
 

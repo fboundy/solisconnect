@@ -30,7 +30,7 @@ To install SolisConnect, follow these steps:
 Whilst the solis inverters do provide total sensors for today, yesterday, month and year. I highly suggest to create a utility meter in HA, as a time difference between HA and Solis might have the values reset before midnight, causing issues in charts.
 
 ## Manual Installation
-1. Copy the "solis_modbus" folder into your "custom_components" folder
+1. Copy the "solisconnect" folder into your "custom_components" folder
 
 ## Setup
 1. Navigate to Settings -> Devices & Services

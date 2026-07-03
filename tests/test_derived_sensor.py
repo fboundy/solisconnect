@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from homeassistant.core import HomeAssistant
 
-from custom_components.solis_modbus.const import CONTROLLER, REGISTER, SLAVE, VALUE
-from custom_components.solis_modbus.sensors.solis_derived_sensor import SolisDerivedSensor
+from custom_components.solisconnect.const import CONTROLLER, REGISTER, SLAVE, VALUE
+from custom_components.solisconnect.sensors.solis_derived_sensor import SolisDerivedSensor
 
 
 @pytest.fixture

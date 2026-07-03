@@ -2,9 +2,9 @@ import json
 import os
 import unittest
 
-from custom_components.solis_modbus.const import DOMAIN
-from custom_components.solis_modbus.helpers import unique_id_generator, unique_id_generator_binary
-from custom_components.solis_modbus.sensor_data.hybrid_sensors import hybrid_sensors, hybrid_sensors_derived
+from custom_components.solisconnect.const import DOMAIN
+from custom_components.solisconnect.helpers import unique_id_generator, unique_id_generator_binary
+from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors, hybrid_sensors_derived
 
 
 class TestSensorDrift(unittest.TestCase):
@@ -40,10 +40,10 @@ class TestSensorDrift(unittest.TestCase):
             current_sensors.add(uid)
 
         # New Entity Types
-        from custom_components.solis_modbus.data.solis_config import InverterConfig, InverterType
-        from custom_components.solis_modbus.sensor_data.select_sensors import get_select_sensors
-        from custom_components.solis_modbus.sensor_data.switch_sensors import get_switch_sensors
-        from custom_components.solis_modbus.sensor_data.time_sensors import get_time_sensors
+        from custom_components.solisconnect.data.solis_config import InverterConfig, InverterType
+        from custom_components.solisconnect.sensor_data.select_sensors import get_select_sensors
+        from custom_components.solisconnect.sensor_data.switch_sensors import get_switch_sensors
+        from custom_components.solisconnect.sensor_data.time_sensors import get_time_sensors
 
         config = InverterConfig(model="TEST", type=InverterType.HYBRID, wattage=[5000], phases=[1])
 

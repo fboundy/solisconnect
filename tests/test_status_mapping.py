@@ -1,4 +1,4 @@
-from custom_components.solis_modbus.data.status_mapping import STATUS_MAPPING
+from custom_components.solisconnect.data.status_mapping import STATUS_MAPPING
 
 
 def test_grid_voltage_fault_codes_match_soliscloud():

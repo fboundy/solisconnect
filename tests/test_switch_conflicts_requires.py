@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.solis_modbus.sensors.solis_binary_sensor import (
+from custom_components.solisconnect.sensors.solis_binary_sensor import (
     SolisBinaryEntity,
     set_bit,
 )
@@ -42,8 +42,8 @@ async def test_conflicts_self_use_mode(mock_hass, controller):
     initial = set_bit(set_bit(0, 6, True), 11, True)
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_get", return_value=initial),
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_get", return_value=initial),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_save"),
     ):
         entity = SolisBinaryEntity(mock_hass, controller, entity_def)
         await entity.set_register_bit(True)
@@ -64,8 +64,8 @@ async def test_requires_tou(mock_hass, controller):
     }
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_get", return_value=0),
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_get", return_value=0),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_save"),
     ):
         entity = SolisBinaryEntity(mock_hass, controller, entity_def)
         await entity.set_register_bit(True)
@@ -87,8 +87,8 @@ async def test_conflicts_and_requires_combined(mock_hass, controller):
     initial = set_bit(set_bit(set_bit(0, 0, True), 6, True), 1, True)
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_get", return_value=initial),
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_get", return_value=initial),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_save"),
     ):
         entity = SolisBinaryEntity(mock_hass, controller, entity_def)
         await entity.set_register_bit(True)
@@ -112,8 +112,8 @@ async def test_cold_cache_reads_live_value_and_preserves_bits(mock_hass, control
     controller.async_read_holding_register.return_value = [live_value]
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_get", return_value=None),
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_get", return_value=None),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_save"),
     ):
         entity = SolisBinaryEntity(mock_hass, controller, entity_def)
         await entity.set_register_bit(True)
@@ -136,8 +136,8 @@ async def test_cold_cache_failed_live_read_skips_write(mock_hass, controller):
     controller.async_read_holding_register.return_value = None
 
     with (
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_get", return_value=None),
-        patch("custom_components.solis_modbus.sensors.solis_binary_sensor.cache_save"),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_get", return_value=None),
+        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_save"),
     ):
         entity = SolisBinaryEntity(mock_hass, controller, entity_def)
         await entity.set_register_bit(True)

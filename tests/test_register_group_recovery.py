@@ -4,11 +4,11 @@ import unittest
 from functools import partial
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.solis_modbus.const import DOMAIN, NUMBER_ENTITIES, SENSOR_ENTITIES, VALUES
-from custom_components.solis_modbus.data.enums import PollSpeed
-from custom_components.solis_modbus.data_retrieval import DataRetrieval
-from custom_components.solis_modbus.modbus_controller import RECOVERABLE_REGISTER_READ_EXCEPTIONS, ModbusController
-from custom_components.solis_modbus.sensors.solis_base_sensor import (
+from custom_components.solisconnect.const import DOMAIN, NUMBER_ENTITIES, SENSOR_ENTITIES, VALUES
+from custom_components.solisconnect.data.enums import PollSpeed
+from custom_components.solisconnect.data_retrieval import DataRetrieval
+from custom_components.solisconnect.modbus_controller import RECOVERABLE_REGISTER_READ_EXCEPTIONS, ModbusController
+from custom_components.solisconnect.sensors.solis_base_sensor import (
     SolisSensorGroup,
     cluster_sensors_by_contiguous_registers,
 )
@@ -133,7 +133,7 @@ class TestRecoverMultiRegisterDisable(unittest.IsolatedAsyncioTestCase):
             return (None, 2)
 
         with patch.object(self.dr, "_read_register_block_with_exception", new=AsyncMock(side_effect=read_blk)):
-            with patch("custom_components.solis_modbus.data_retrieval.mark_platform_entities_unavailable_for_base_sensors"):
+            with patch("custom_components.solisconnect.data_retrieval.mark_platform_entities_unavailable_for_base_sensors"):
                 out = await self.dr._recover_sensor_group_after_modbus_failure(group, 301, 3, False, [])
 
         self.assertFalse(s_wide.enabled)
@@ -147,7 +147,7 @@ class TestRecoverMultiRegisterDisable(unittest.IsolatedAsyncioTestCase):
 
 class TestModbusControllerReplaceGroup(unittest.TestCase):
     def test_replace_sensor_group_preserves_order(self):
-        from custom_components.solis_modbus.modbus_controller import ModbusController
+        from custom_components.solisconnect.modbus_controller import ModbusController
 
         g0 = MagicMock()
         g1 = MagicMock()

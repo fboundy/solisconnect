@@ -1,7 +1,7 @@
 import unittest
 
-from custom_components.solis_modbus.sensor_data.hybrid_sensors import hybrid_sensors, hybrid_sensors_derived
-from custom_components.solis_modbus.sensor_data.string_sensors import string_sensors, string_sensors_derived
+from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors, hybrid_sensors_derived
+from custom_components.solisconnect.sensor_data.string_sensors import string_sensors, string_sensors_derived
 
 
 def extract_all_entities(sensor_groups):

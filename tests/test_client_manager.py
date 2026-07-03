@@ -2,7 +2,7 @@ import unittest
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import MagicMock, patch
 
-from custom_components.solis_modbus.client_manager import ModbusClientManager
+from custom_components.solisconnect.client_manager import ModbusClientManager
 
 
 class TestModbusClientManager(unittest.TestCase):
@@ -14,7 +14,7 @@ class TestModbusClientManager(unittest.TestCase):
     def tearDown(self):
         ModbusClientManager._instance = None
 
-    @patch("custom_components.solis_modbus.client_manager.AsyncModbusTcpClient")
+    @patch("custom_components.solisconnect.client_manager.AsyncModbusTcpClient")
     def test_get_client_creates_new_if_not_exists(self, mock_client_cls):
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
@@ -25,7 +25,7 @@ class TestModbusClientManager(unittest.TestCase):
         self.assertEqual(client1, mock_client)
         self.assertEqual(self.manager._clients["1.2.3.4:502"]["ref_count"], 1)
 
-    @patch("custom_components.solis_modbus.client_manager.AsyncModbusTcpClient")
+    @patch("custom_components.solisconnect.client_manager.AsyncModbusTcpClient")
     def test_get_client_returns_existing_and_increments_ref(self, mock_client_cls):
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
@@ -37,7 +37,7 @@ class TestModbusClientManager(unittest.TestCase):
         self.assertEqual(client1, client2)
         self.assertEqual(self.manager._clients["1.2.3.4:502"]["ref_count"], 2)
 
-    @patch("custom_components.solis_modbus.client_manager.AsyncModbusTcpClient")
+    @patch("custom_components.solisconnect.client_manager.AsyncModbusTcpClient")
     def test_get_client_lock(self, mock_client_cls):
         self.manager.get_tcp_client("1.2.3.4", 502)
         lock = self.manager.get_client_lock("1.2.3.4:502")
@@ -49,7 +49,7 @@ class TestModbusClientManager(unittest.TestCase):
         # Non-existent
         self.assertIsNone(self.manager.get_client_lock("9.9.9.9:502"))
 
-    @patch("custom_components.solis_modbus.client_manager.AsyncModbusTcpClient")
+    @patch("custom_components.solisconnect.client_manager.AsyncModbusTcpClient")
     def test_release_client(self, mock_client_cls):
         mock_client = MagicMock()
         mock_client.connected = True
@@ -83,7 +83,7 @@ class TestModbusClientManagerInterFrame(IsolatedAsyncioTestCase):
     def tearDown(self):
         ModbusClientManager._instance = None
 
-    @patch("custom_components.solis_modbus.client_manager.AsyncModbusTcpClient")
+    @patch("custom_components.solisconnect.client_manager.AsyncModbusTcpClient")
     async def test_inter_frame_wait_updates_shared_timestamp(self, mock_client_cls):
         mock_client_cls.return_value = MagicMock()
         self.manager.get_tcp_client("1.2.3.4", 502)

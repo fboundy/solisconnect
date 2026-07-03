@@ -7,7 +7,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.solis_modbus.const import (
+from custom_components.solisconnect.const import (
     CONF_CLOUD_INVERTER_ID,
     CONF_CLOUD_KEY_ID,
     CONF_CLOUD_KEY_SECRET,
@@ -81,15 +81,15 @@ def _cloud_entry() -> MockConfigEntry:
 def _patched_api():
     return (
         patch(
-            "custom_components.solis_modbus.cloud.api_client.SolisCloudApiClient.async_inverter_detail",
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_detail",
             new=AsyncMock(return_value=CANNED_DETAIL),
         ),
         patch(
-            "custom_components.solis_modbus.cloud.api_client.SolisCloudApiClient.async_at_read_batch",
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_at_read_batch",
             new=AsyncMock(return_value=CANNED_BATCH),
         ),
         patch(
-            "custom_components.solis_modbus.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
             new=AsyncMock(return_value=[{"id": "CLOUDID1", "sn": SERIAL}]),
         ),
     )
@@ -199,11 +199,11 @@ async def test_migration_v3_to_v4_sets_modbus_only(hass: HomeAssistant):
     entry.add_to_hass(hass)
 
     with (
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.connect", return_value=True),
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.connected", return_value=True),
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.async_read_input_register", return_value=[1, 2, 3]),
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.process_write_queue"),
-        patch("custom_components.solis_modbus.modbus_controller.ModbusController.async_read_holding_register", return_value=[1, 2, 3]),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connected", return_value=True),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register", return_value=[1, 2, 3]),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.process_write_queue"),
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.async_read_holding_register", return_value=[1, 2, 3]),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -221,7 +221,7 @@ async def test_migration_v3_to_v4_sets_modbus_only(hass: HomeAssistant):
 
 async def test_config_flow_cloud_branch_creates_entry(hass: HomeAssistant):
     with patch(
-        "custom_components.solis_modbus.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+        "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
         new=AsyncMock(return_value=[{"id": "1", "sn": "sn999"}]),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
@@ -230,7 +230,7 @@ async def test_config_flow_cloud_branch_creates_entry(hass: HomeAssistant):
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CONNECTION_TYPE: CONN_TYPE_CLOUD})
         assert result["type"] == "form" and result["step_id"] == "cloud"
 
-        with patch("custom_components.solis_modbus.async_setup_entry", return_value=True):
+        with patch("custom_components.solisconnect.async_setup_entry", return_value=True):
             result = await hass.config_entries.flow.async_configure(
                 result["flow_id"],
                 {
@@ -249,10 +249,10 @@ async def test_config_flow_cloud_branch_creates_entry(hass: HomeAssistant):
 
 
 async def test_config_flow_cloud_bad_credentials_shows_error(hass: HomeAssistant):
-    from custom_components.solis_modbus.cloud.api_client import SolisCloudApiError
+    from custom_components.solisconnect.cloud.api_client import SolisCloudApiError
 
     with patch(
-        "custom_components.solis_modbus.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+        "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
         new=AsyncMock(side_effect=SolisCloudApiError("boom")),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
@@ -272,7 +272,7 @@ async def test_reconfigure_cloud_entry_uses_cloud_form(hass: HomeAssistant):
     entry.add_to_hass(hass)
 
     with patch(
-        "custom_components.solis_modbus.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+        "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
         new=AsyncMock(return_value=[{"id": "CLOUDID1", "sn": SERIAL}]),
     ):
         result = await entry.start_reconfigure_flow(hass)
@@ -280,8 +280,8 @@ async def test_reconfigure_cloud_entry_uses_cloud_form(hass: HomeAssistant):
         assert result["step_id"] == "reconfigure_cloud"
 
         with (
-            patch("custom_components.solis_modbus.async_setup_entry", return_value=True),
-            patch("custom_components.solis_modbus.async_unload_entry", return_value=True),
+            patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+            patch("custom_components.solisconnect.async_unload_entry", return_value=True),
         ):
             result = await hass.config_entries.flow.async_configure(
                 result["flow_id"],
@@ -300,7 +300,7 @@ async def test_reconfigure_cloud_entry_uses_cloud_form(hass: HomeAssistant):
 
 async def test_config_flow_cloud_multiple_inverters_requires_serial(hass: HomeAssistant):
     with patch(
-        "custom_components.solis_modbus.cloud.api_client.SolisCloudApiClient.async_inverter_list",
+        "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
         new=AsyncMock(return_value=[{"id": "1", "sn": "SNA"}, {"id": "2", "sn": "SNB"}]),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
@@ -313,7 +313,7 @@ async def test_config_flow_cloud_multiple_inverters_requires_serial(hass: HomeAs
         assert "multiple inverters" in result["errors"]["base"]
 
         # Providing the serial resolves it
-        with patch("custom_components.solis_modbus.async_setup_entry", return_value=True):
+        with patch("custom_components.solisconnect.async_setup_entry", return_value=True):
             result = await hass.config_entries.flow.async_configure(
                 result["flow_id"],
                 {
