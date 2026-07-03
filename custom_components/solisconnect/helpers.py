@@ -159,6 +159,29 @@ def decode_inverter_model(hex_value):
     return protocol_version, model_description
 
 
+# HMI firmware version at or above this value supports TOU V2 (Grid Time of Use). Verified
+# live: an inverter reporting hmiVersionAll/register 33002 = "4B00" is confirmed running V2,
+# so 0x4B00 is the boundary-inclusive minimum, not an earlier (wrong) 0xFB00 guess.
+V2_HMI_VERSION_THRESHOLD = 0x4B00
+
+
+def hmi_version_supports_v2(raw: int | str | None) -> bool | None:
+    """Whether an HMI firmware version indicates TOU V2 support.
+
+    Accepts either the raw Modbus register integer (register 33002) or the SolisCloud
+    hex string (`inverterDetail` field `hmiVersionAll`, e.g. "4B00") — both encode the
+    same raw value. Returns None if undeterminable rather than raising, so callers can
+    fall back to whatever the user already configured.
+    """
+    if raw is None:
+        return None
+    try:
+        value = int(raw, 16) if isinstance(raw, str) else int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value >= V2_HMI_VERSION_THRESHOLD
+
+
 def controller_scope(controller) -> str:
     """Protocol-neutral scope shared by all controllers talking to one inverter.
 

@@ -45,6 +45,7 @@ from .const import (
 )
 from .data.enums import InverterType
 from .data.solis_config import CONNECTION_METHOD, SOLIS_INVERTERS, InverterConfig, inverter_options_from_config
+from .helpers import hmi_version_supports_v2
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -270,7 +271,7 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._both_mode:
                 # The dual entry is keyed by the Modbus serial; the cloud plant must contain it
                 user_input = {**user_input, CONF_INVERTER_SERIAL: self._modbus_data[CONF_INVERTER_SERIAL]}
-            serial, inverter_id, detected_model, product_model, error = await self._validate_cloud_config(user_input)
+            serial, inverter_id, detected_model, product_model, detected_has_v2, error = await self._validate_cloud_config(user_input)
             if error:
                 errors["base"] = error
             elif self._both_mode:
@@ -282,6 +283,14 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         serial,
                     )
                     self._modbus_data["model"] = detected_model
+                if detected_has_v2 is not None and self._modbus_data.get("has_v2") != detected_has_v2:
+                    _LOGGER.info(
+                        "HMI firmware version identifies TOU V2 support=%s; overriding has_v2=%s for serial %s",
+                        detected_has_v2,
+                        self._modbus_data.get("has_v2"),
+                        serial,
+                    )
+                    self._modbus_data["has_v2"] = detected_has_v2
                 self._cloud_data = user_input
                 self._resolved_serial = serial
                 self._resolved_cloud_id = inverter_id
@@ -298,9 +307,17 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         user_input.get("model"),
                         serial,
                     )
+                if detected_has_v2 is not None and user_input.get("has_v2") != detected_has_v2:
+                    _LOGGER.info(
+                        "HMI firmware version identifies TOU V2 support=%s; overriding has_v2=%s for serial %s",
+                        detected_has_v2,
+                        user_input.get("has_v2"),
+                        serial,
+                    )
                 data = {
                     **user_input,
                     "model": detected_model or user_input.get("model"),
+                    "has_v2": detected_has_v2 if detected_has_v2 is not None else user_input.get("has_v2"),
                     CONF_INVERTER_SERIAL: serial,
                     CONF_CLOUD_INVERTER_ID: inverter_id,
                     CONF_CLOUD_PRODUCT_MODEL: product_model,
@@ -361,10 +378,10 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({vol.Required("dual_mode", default="failover_modbus"): vol.In(DUAL_MODE_OPTIONS)}),
         )
 
-    async def _validate_cloud_config(self, user_input) -> tuple[str | None, str | None, str | None, str | None, str | None]:
+    async def _validate_cloud_config(self, user_input) -> tuple[str | None, str | None, str | None, str | None, bool | None, str | None]:
         """Check credentials against the SolisCloud API and resolve the inverter serial + cloud id.
 
-        Returns (serial, inverter_id, detected_model, product_model, None) on success.
+        Returns (serial, inverter_id, detected_model, product_model, detected_has_v2, None) on success.
         The cloud id is required alongside the serial for inverterDetail reads.
         """
         from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -384,26 +401,36 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             records = await client.async_inverter_list(user_input[CONF_CLOUD_PLANT_ID].strip())
         except SolisCloudApiError as error:
             _LOGGER.warning("SolisCloud validation failed: %s", error)
-            return None, None, None, None, "Cannot reach the SolisCloud API with these credentials. Check the key id/secret and plant id."
+            return None, None, None, None, None, "Cannot reach the SolisCloud API with these credentials. Check the key id/secret and plant id."
 
         by_serial = {str(rec["sn"]).upper(): rec for rec in records if rec.get("sn")}
         if not by_serial:
-            return None, None, None, None, "No inverters found for this plant id."
+            return None, None, None, None, None, "No inverters found for this plant id."
+
+        async def _resolve(serial: str, record: dict):
+            metadata = cloud_model_metadata(record)
+            product_model = metadata.get("productModel") or metadata.get("model")
+            inverter_id = str(record.get("id") or "") or None
+            detected_has_v2 = None
+            # inverterList doesn't include hmiVersionAll; that field is only in inverterDetail
+            # (the same call cloud_retrieval.py already makes every poll cycle).
+            try:
+                detail = await client.async_inverter_detail(serial, inverter_id)
+            except SolisCloudApiError as error:
+                _LOGGER.debug("HMI version lookup failed for serial %s during setup: %s", serial, error)
+            else:
+                detected_has_v2 = hmi_version_supports_v2(detail.get("hmiVersionAll"))
+            return serial, inverter_id, infer_model_from_cloud_record(record), product_model, detected_has_v2, None
 
         wanted = (user_input.get(CONF_INVERTER_SERIAL) or "").strip().upper()
         if wanted:
             if wanted not in by_serial:
-                return None, None, None, None, f"Inverter serial {wanted} not found in this plant (found: {', '.join(by_serial)})."
-            record = by_serial[wanted]
-            metadata = cloud_model_metadata(record)
-            product_model = metadata.get("productModel") or metadata.get("model")
-            return wanted, str(record.get("id") or "") or None, infer_model_from_cloud_record(record), product_model, None
+                return None, None, None, None, None, f"Inverter serial {wanted} not found in this plant (found: {', '.join(by_serial)})."
+            return await _resolve(wanted, by_serial[wanted])
         if len(by_serial) == 1:
             serial, record = next(iter(by_serial.items()))
-            metadata = cloud_model_metadata(record)
-            product_model = metadata.get("productModel") or metadata.get("model")
-            return serial, str(record.get("id") or "") or None, infer_model_from_cloud_record(record), product_model, None
-        return None, None, None, None, f"This plant has multiple inverters ({', '.join(by_serial)}); please enter the serial of the one to add."
+            return await _resolve(serial, record)
+        return None, None, None, None, None, f"This plant has multiple inverters ({', '.join(by_serial)}); please enter the serial of the one to add."
 
     async def async_step_reconfigure(self, user_input=None):
         """Handle reconfiguration."""
@@ -451,7 +478,7 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
         if user_input is not None:
-            serial, inverter_id, detected_model, product_model, error = await self._validate_cloud_config(user_input)
+            serial, inverter_id, detected_model, product_model, detected_has_v2, error = await self._validate_cloud_config(user_input)
             if error:
                 errors["base"] = error
             elif serial != entry.unique_id:
@@ -464,10 +491,18 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         user_input.get("model"),
                         serial,
                     )
+                if detected_has_v2 is not None and user_input.get("has_v2") != detected_has_v2:
+                    _LOGGER.info(
+                        "HMI firmware version identifies TOU V2 support=%s; overriding has_v2=%s for serial %s",
+                        detected_has_v2,
+                        user_input.get("has_v2"),
+                        serial,
+                    )
                 data = {
                     **entry.data,
                     **user_input,
                     "model": detected_model or user_input.get("model"),
+                    "has_v2": detected_has_v2 if detected_has_v2 is not None else user_input.get("has_v2"),
                     CONF_INVERTER_SERIAL: serial,
                     CONF_CLOUD_INVERTER_ID: inverter_id,
                     CONF_CLOUD_PRODUCT_MODEL: product_model,
@@ -560,6 +595,26 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await modbus_controller.async_read_input_register(3041, 1)
                 else:
                     await modbus_controller.async_read_input_register(35000, 1)
+
+                # Auto-detect TOU V2 support from HMI firmware version (register 33002) rather
+                # than relying solely on the form's manual toggle. A failed/unparseable read
+                # must never block setup; the user's chosen value survives untouched.
+                try:
+                    hmi_registers = await modbus_controller.async_read_input_register(33002, 1)
+                except Exception as hmi_error:
+                    _LOGGER.debug("HMI version read failed during setup; leaving has_v2 as configured: %s", hmi_error)
+                else:
+                    if hmi_registers:
+                        detected_has_v2 = hmi_version_supports_v2(hmi_registers[0])
+                        if detected_has_v2 is not None and user_input.get("has_v2") != detected_has_v2:
+                            _LOGGER.info(
+                                "HMI version %s identifies TOU V2 support=%s; overriding has_v2=%s for serial %s",
+                                hmi_registers[0],
+                                detected_has_v2,
+                                user_input.get("has_v2"),
+                                user_input.get(CONF_INVERTER_SERIAL),
+                            )
+                            user_input["has_v2"] = detected_has_v2
 
                 return True, None
             except Exception as e:

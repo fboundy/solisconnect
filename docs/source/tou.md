@@ -2,6 +2,8 @@
 
 Solis hybrid inverters expose two independent, non-interacting sets of scheduled charge/discharge controls. SolisConnect maps both, but they cover different register ranges, different slot counts, and different levels of Modbus/SolisCloud parity.
 
+The config flow's "V2 support" toggle is auto-detected from the inverter's HMI firmware version (Modbus register `33002`, or SolisCloud `inverterDetail` field `hmiVersionAll`) whenever that read succeeds: an HMI version at or above `0x4B00` supports V2. Detection silently overrides whatever the installer picked in the form (same pattern as automatic model detection); if the read fails or is unparseable, the form's choice is left as-is rather than blocking setup.
+
 ## Summary
 
 | | Time-Charging (V1) | Grid Time of Use V2 |

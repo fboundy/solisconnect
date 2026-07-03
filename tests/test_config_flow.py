@@ -75,6 +75,88 @@ async def test_flow_user_success(hass: HomeAssistant):
 
 
 @pytest.mark.asyncio
+async def test_flow_user_hmi_version_overrides_has_v2(hass: HomeAssistant):
+    """Issue #20: a determinate HMI version (register 33002) overrides the form's has_v2 choice."""
+
+    async def fake_read_input_register(register, count):
+        if register == 33002:
+            return [0x4AFF]  # below the V2 threshold
+        return [1]
+
+    with (
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch(
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
+            side_effect=fake_read_input_register,
+        ),
+        patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={"connection_type": CONN_TYPE_TCP})
+
+        config_input = {
+            "host": "1.2.3.4",
+            "port": 502,
+            "slave": 1,
+            "model": "S6-EH1P",
+            "connection": "S2_WL_ST",
+            "has_v2": True,  # user picked True; the detected HMI version should override it
+            "has_pv": True,
+            "has_ac_coupling": False,
+            "has_parallel": False,
+            "has_battery": True,
+            "has_hv_battery": False,
+            "has_generator": False,
+            "inverter_serial": "sn124",
+        }
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input=config_input)
+
+        assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+        assert result["data"]["has_v2"] is False
+
+
+@pytest.mark.asyncio
+async def test_flow_user_hmi_read_failure_keeps_user_choice(hass: HomeAssistant):
+    """Issue #20: an HMI version read failure must never block setup or override the user's choice."""
+
+    async def fake_read_input_register(register, count):
+        if register == 33002:
+            raise TimeoutError("no response")
+        return [1]
+
+    with (
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch(
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
+            side_effect=fake_read_input_register,
+        ),
+        patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={"connection_type": CONN_TYPE_TCP})
+
+        config_input = {
+            "host": "1.2.3.4",
+            "port": 502,
+            "slave": 1,
+            "model": "S6-EH1P",
+            "connection": "S2_WL_ST",
+            "has_v2": False,
+            "has_pv": True,
+            "has_ac_coupling": False,
+            "has_parallel": False,
+            "has_battery": True,
+            "has_hv_battery": False,
+            "has_generator": False,
+            "inverter_serial": "sn125",
+        }
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input=config_input)
+
+        assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+        assert result["data"]["has_v2"] is False
+
+
+@pytest.mark.asyncio
 async def test_flow_user_connection_error(hass: HomeAssistant):
     """Test user initialized flow with connection error."""
     with patch(
