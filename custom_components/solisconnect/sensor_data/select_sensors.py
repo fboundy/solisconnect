@@ -34,6 +34,7 @@ def get_select_sensors(inverter_config):
             {
                 "register": 43110,
                 "name": "Work Mode",
+                "control": True,
                 "entities": [
                     # Adheres to RS485_MODBUS ESINV-33000ID Hybrid Inverter V3.2 / Appendix 8
                     {"bit_position": 0, "name": "Self-Use", "conflicts_with": [0, 6, 11]},

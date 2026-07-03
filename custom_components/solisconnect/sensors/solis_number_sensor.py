@@ -44,7 +44,10 @@ class SolisNumberEntity(RestoreNumber, NumberEntity):
         self._attr_state_class = sensor.state_class
         self._attr_native_unit_of_measurement = sensor.unit_of_measurement
         self._attr_available = not sensor.hidden and sensor.enabled
-        self._attr_entity_category = entity_category_for_sensor_category(getattr(sensor, "category", None))
+        self._attr_entity_category = entity_category_for_sensor_category(
+            getattr(sensor, "category", None),
+            getattr(sensor, "control", False),
+        )
 
         self._received_values = {}
 

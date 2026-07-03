@@ -35,7 +35,10 @@ class SolisSensor(RestoreSensor, SensorEntity):
         self._attr_native_unit_of_measurement = sensor.unit_of_measurement
         self._attr_available = not sensor.hidden and sensor.enabled
         self._attr_suggested_display_precision = self.decimal_count(sensor.multiplier)
-        self._attr_entity_category = entity_category_for_sensor_category(getattr(sensor, "category", None))
+        self._attr_entity_category = entity_category_for_sensor_category(
+            getattr(sensor, "category", None),
+            getattr(sensor, "control", False),
+        )
 
         self.is_added_to_hass = False
         self._state = None

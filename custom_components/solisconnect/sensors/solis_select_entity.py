@@ -17,7 +17,7 @@ class SolisSelectEntity(RestoreEntity, SelectEntity):
         self._register = entity_definition["register"]
         self._attr_name = entity_definition["name"]
         self._attr_unique_id = unique_id_generator(modbus_controller, entity_definition["register"], "select")
-        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_entity_category = None if entity_definition.get("control", False) else EntityCategory.CONFIG
 
         self._attr_options = [e["name"] for e in entity_definition["entities"]]
         self._attr_options_raw = entity_definition["entities"]

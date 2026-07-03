@@ -53,6 +53,7 @@ class SolisBaseSensor:
         poll_speed=PollSpeed.NORMAL,
         data_type: str | None = None,
         value_format: str | None = None,
+        control: bool = False,
     ):
         """
         :param name: Sensor name
@@ -92,6 +93,7 @@ class SolisBaseSensor:
         self.category = category
         self.identification = identification
         self.value_format = value_format
+        self.control = control
 
         self.dynamic_adjustments()
 
@@ -234,6 +236,7 @@ class SolisSensorGroup:
                     multiplier=entity.get("multiplier", 1),
                     data_type=entity.get("data_type", None),
                     value_format=entity.get("value_format", None),
+                    control=entity.get("control", False),
                     unique_id=unique_id_generator(controller, entity),
                     poll_speed=definition.get("poll_speed", PollSpeed.NORMAL),
                 ),

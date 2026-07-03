@@ -55,7 +55,8 @@ class SolisTimeEntity(RestoreSensor, TimeEntity):
         self._attr_has_entity_name = True
         self._attr_available = True
         self._attr_device_class = entity_definition.get("device_class", None)
-        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_entity_category = None if entity_definition.get("control", False) else EntityCategory.CONFIG
+        self._attr_entity_registry_enabled_default = entity_definition.get("enabled", True)
         self._attr_available = True
 
         self._received_values = {}
