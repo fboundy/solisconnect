@@ -18,6 +18,9 @@ from custom_components.solisconnect.sensor_data.cloud_mapping import (
     CLOUD_INPUT_MAP,
     TOU_SWITCH_CIDS_BY_BIT,
     TOU_SWITCH_REGISTER,
+    TOU_V2_ENABLEMENT_CID,
+    TOU_V2_REGISTERS,
+    TOU_V2_SUPPORTED_VALUE,
     encode_cid_value,
     encode_engineering_value,
     registers_covered,
@@ -52,6 +55,7 @@ class CloudDataRetrieval:
         self._unsub_start = None
         if self._disable_unmapped:
             self._disable_unmapped_sensors()
+            await self._disable_v2_if_unsupported()
         await self._ensure_inverter_id()
         await self._update_cycle()
         self._unsub_timer = async_track_time_interval(self.hass, self._update_cycle, timedelta(seconds=self.controller.poll_interval))
@@ -201,6 +205,32 @@ class CloudDataRetrieval:
                     disabled.append(sensor)
         if disabled:
             _LOGGER.info("Cloud-only mode: %s sensors have no SolisCloud mapping and will be unavailable", len(disabled))
+            mark_platform_entities_unavailable_for_base_sensors(self.hass, disabled)
+
+    async def _disable_v2_if_unsupported(self):
+        """CID 6798 reports whether this inverter actually supports TOU V2; if it doesn't,
+        writes to the V2 entities would otherwise be silently rejected by the device with no
+        warning from the integration. Same treatment as _disable_unmapped_sensors: mark them
+        unavailable up front instead. A failed/undeterminable read leaves the sensors as-is —
+        never disable on a guess."""
+        try:
+            msg = await self.controller.api.async_at_read(self.controller.serial_number, TOU_V2_ENABLEMENT_CID)
+        except SolisCloudApiError as error:
+            _LOGGER.debug("CID %s (TOU V2 support) read failed; leaving TOU V2 sensors as configured: %s", TOU_V2_ENABLEMENT_CID, error)
+            return
+        if str(msg).strip() == TOU_V2_SUPPORTED_VALUE:
+            return
+
+        disabled = []
+        for group in self.controller.sensor_groups or []:
+            for sensor in group.sensors:
+                if sensor.name == "reserve" or not sensor.enabled:
+                    continue
+                if any(register in TOU_V2_REGISTERS for register in sensor.registrars):
+                    sensor.enabled = False
+                    disabled.append(sensor)
+        if disabled:
+            _LOGGER.info("SolisCloud CID %s reports this inverter does not support TOU V2: disabling %s sensors", TOU_V2_ENABLEMENT_CID, len(disabled))
             mark_platform_entities_unavailable_for_base_sensors(self.hass, disabled)
 
     async def async_stop(self):

@@ -15,8 +15,8 @@ The config flow's "V2 support" toggle is auto-detected from the inverter's HMI f
 | Target SOC | Not available | Per-slot (register offset `+0` in each slot block) |
 | Cut-off voltage | Not available | Per-slot (register offset `+2` in each slot block) |
 | Modbus registers | `43141-43170` | `43707-43791` |
-| SolisCloud support | **Planned, not yet implemented** — control CID `103` exists and covers exactly the 3 vendor-documented slots (see below) | Mapped: control CIDs `5916-5987` |
-| SolisCloud enablement gate | N/A | CID `6798` (`0xAA55`) reports whether the inverter supports V2; SolisConnect does not yet enforce this gate (see caveat below) |
+| SolisCloud support | Mapped: control CID `103` (see below) | Mapped: control CIDs `5916-5987` |
+| SolisCloud enablement gate | N/A | CID `6798` (`0xAA55`) reports whether the inverter supports V2; SolisConnect reads this once at first poll in cloud-only mode and disables the V2 entities if unsupported (see caveat below) |
 
 ## Time-Charging (V1)
 
@@ -28,7 +28,9 @@ The older scheduling mechanism. One shared charge current and one shared dischar
   - Charge Start / Charge End
   - Discharge Start / Discharge End
 - Register layout: slot 1 starts at `43143`, slot 2 at `43153`, slot 3 at `43163` (each slot block is 8 registers of data plus a 2-register reserved gap).
-- **SolisCloud mapping is planned but not yet implemented.** SolisCloud control CID `103` ("Charge and discharge Settings") can read/write V1 TOU: a single comma-separated string of 18 values covering all 3 slots, with **per-slot** charge/discharge current — unlike Modbus, where current is one pair shared by all slots. Field order per slot: `ChargeCurrent, DischargeCurrent, ChargeStart(HH:mm), ChargeEnd(HH:mm), DischargeStart(HH:mm), DischargeEnd(HH:mm)`. Source: `SolisCloud_control_api_command_list` workbook, "Hybrid Inverter" sheet. See the project's working notes for the full implementation plan.
+- **SolisCloud mapping** (`sensor_data/cloud_mapping.py`, control CID `103`, "Charge and discharge Settings"): a single comma-separated string of 18 values covering all 3 slots, with **per-slot** charge/discharge current — unlike Modbus, where current is one pair shared by all slots. Field order per slot: `ChargeCurrent, DischargeCurrent, ChargeStart(HH:mm), ChargeEnd(HH:mm), DischargeStart(HH:mm), DischargeEnd(HH:mm)`. Source: `SolisCloud_control_api_command_list` workbook, "Hybrid Inverter" sheet.
+  - Since Modbus has no per-slot current, decoding a cloud read takes **slot 1's** current values as the representative Modbus value, and a Modbus-side current write is broadcast uniformly to all 3 cloud slots. A single-register (current) or paired-register (one time field) write reads the full current 26-register state (from cache, or `atRead(cid=103)` if the cache is incomplete), splices in the change, and writes the whole recomposed string back — the same pattern already used for TOU V2's time-pair writes (`_execute_tou_time_write`, reused here rather than duplicated).
+  - **Not yet live-verified on a real inverter.** The mapping and write path are implemented and unit-tested against the worked example from the CID `103` spec, but several assumptions remain unconfirmed on real hardware: whether CID `103` is supported on non-"Hybrid Inverter" product lines, whether a partial write silently resets untouched fields, and whether broadcasting one Modbus current value to all 3 cloud slots is accepted by the device if it already has genuinely different per-slot currents set. Use the established safe live-write pattern (read original → write test value → verify → revert) before relying on this in production.
 - The official Solis RS485_MODBUS Hybrid Inverter protocol document only documents slot 1 (`43141-43150`); slots 2-3 (`43153`, `43163`) are undocumented in that particular revision but independently confirmed by SolisCloud control CID `103`, which covers exactly these 3 slots and no more. (An earlier version of SolisConnect also defined a "Slot 4" and "Slot 5" at `43173-43190`; these fell entirely inside the vendor's documented `Reserved` range with no confirmation from any source and have been removed.)
 
 ## Grid Time of Use V2
@@ -47,10 +49,10 @@ The newer, richer scheduling mechanism with independent settings per slot.
   - Battery current -> CIDs `5948-5963` family (charge), `5967-5986` family (discharge).
   - Cut-off voltage -> the paired CID in the same current/voltage CID families.
   - Start/end time pairs -> CIDs `5946, 5949, 5952, 5955, 5958, 5961` (charge), `5964, 5968, 5972, 5976, 5980, 5987` (discharge); the cloud API represents each pair as a single `HH:MM-HH:MM` string, which SolisConnect composes from/decomposes into the paired hour/minute registers.
-- **Known caveat:** SolisCloud CID `6798` reports whether the connected inverter actually supports TOU V2 (value `43605` / `0xAA55` = supported). SolisConnect does not yet read this gate, so cloud-only or dual-protocol entries on a V2-unsupported inverter may have TOU V2 writes rejected by the device with no advance warning from the integration.
+- **Enablement gate:** SolisCloud CID `6798` reports whether the connected inverter actually supports TOU V2 (value `43605` / `0xAA55` = supported). In cloud-only mode, `CloudDataRetrieval` reads this once at first poll and — if the value is anything else — disables every sensor covering registers `43707-43791`, the same treatment already given to registers with no cloud mapping at all (`_disable_unmapped_sensors`). A failed or undeterminable read never disables anything (no guessing). This check does not run in dual-protocol modes, since Modbus can still serve these registers there regardless of what the cloud gate reports.
 
 ## Practical implications
 
 - V1 and V2 are independent schedules on the inverter itself; enabling one does not disable the other, and having both enabled is a device-level conflict outside SolisConnect's control — check your inverter's own firmware behavior before enabling both.
 - If you only have local Modbus, either scheme is fully readable and writable.
-- If you are on SolisCloud-only or a dual-protocol setup where cloud may become active, only V2 is safe to rely on for control; V1 entities will read/write successfully over Modbus but will not fail over to cloud (there is no cloud mapping to fall back to) and will simply stop updating if cloud becomes the active protocol.
+- If you are on SolisCloud-only or a dual-protocol setup where cloud may become active, both V1 and V2 now have cloud mappings; V1's cloud write path is implemented but not yet live-verified (see above) — prefer V2 for cloud-active setups until V1's cloud path has had a live test pass.

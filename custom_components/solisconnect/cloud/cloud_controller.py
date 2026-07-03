@@ -11,14 +11,19 @@ from custom_components.solisconnect.data.enums import PollSpeed
 from custom_components.solisconnect.data.solis_config import InverterConfig
 from custom_components.solisconnect.helpers import cache_get, cache_save, notify_register_update
 from custom_components.solisconnect.sensor_data.cloud_mapping import (
+    CLOUD_CID_MAP,
     REGISTER_TO_CID,
     TOU_SWITCH_CIDS_BY_BIT,
     TOU_SWITCH_REGISTER,
     TOU_TIME_PAIR_TO_CID,
+    V1_TOU_CID,
+    V1_TOU_REGISTERS,
     CloudCidMapping,
     cid_msg_from_words,
     encode_cid_value,
 )
+
+_V1_TOU_REGISTERS_SET = frozenset(V1_TOU_REGISTERS)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,14 +109,21 @@ class SolisCloudController(SolisControllerBase):
         return mapping
 
     async def async_write_holding_register(self, register, value):
-        if int(register) == TOU_SWITCH_REGISTER:
+        register = int(register)
+        if register == TOU_SWITCH_REGISTER:
             await self._execute_tou_switch_write(int(value))
             return
-        mapping = self._mapping_for_write([int(register)])
+        if register in _V1_TOU_REGISTERS_SET:
+            await self._execute_tou_time_write(CLOUD_CID_MAP[V1_TOU_CID], [register], [int(value)])
+            return
+        mapping = self._mapping_for_write([register])
         await self._execute_cloud_write(mapping, [int(value)])
 
     async def async_write_holding_registers(self, start_register, values):
         registers = [int(start_register) + i for i in range(len(values))]
+        if all(register in _V1_TOU_REGISTERS_SET for register in registers):
+            await self._execute_tou_time_write(CLOUD_CID_MAP[V1_TOU_CID], registers, [int(v) for v in values])
+            return
         time_mapping = TOU_TIME_PAIR_TO_CID.get(tuple(registers))
         if time_mapping is not None:
             await self._execute_tou_time_write(time_mapping, registers, [int(v) for v in values])
@@ -146,7 +158,14 @@ class SolisCloudController(SolisControllerBase):
         self._start_verify_task(self._verify_write(mapping, words))
 
     async def _execute_tou_time_write(self, mapping: CloudCidMapping, write_registers: list[int], write_words: list[int]):
-        """Write one start/end HA time pair as the cloud API's full HH:MM-HH:MM slot string."""
+        """Write a subset of a composite mapping's registers as its full CID value.
+
+        Generic against any mapping backed by several Modbus registers packed into one
+        control-API string: a V2 start/end time pair (4 registers -> "HH:MM-HH:MM"), or a V1
+        TOU write touching only the current or a single time pair out of its 26 registers
+        (-> the composite 18-value CID 103 string). Reads the mapping's current full state,
+        splices in the changed register(s), and writes the recomposed value back.
+        """
         current_words = await self._current_words_for_mapping(mapping)
         if current_words is None:
             raise HomeAssistantError(f"SolisCloud write of cid {mapping.cid} failed: current time slot value is unavailable")
