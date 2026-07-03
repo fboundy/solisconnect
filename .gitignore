@@ -73,3 +73,7 @@ scripts/soliscloud_detail_dump.json
 
 # Working handoff notes (contain internal server details and real inverter serial; repo is public)
 WORKING_NOTES.md
+
+# Source docs
+docs/api/
+

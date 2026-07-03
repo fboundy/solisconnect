@@ -117,10 +117,11 @@ Home Assistant only allows one `iot_class` value in the manifest. SolisConnect i
 - The SolisCloud API is rate-limited by the integration. Avoid running another cloud integration against the same key if you are seeing slow or failed cloud updates.
 - If older debug logs captured SolisCloud credentials before redaction was added, rotate the SolisCloud key secret and clear old logs.
 
-**Inverter Serial**: (Required)
+**Inverter Serial**: (Optional on hybrid Modbus models and SolisCloud; required otherwise)
 
-- Enter your inverter's serial number. This is now **mandatory** for generating unique entity IDs and ensuring configuration stability.
-- On Modbus hybrid inverters, once connectivity is confirmed the integration reads the serial directly from the device and silently corrects a mistyped value (grid/string models don't expose this register, so the typed value is used as-is). On SolisCloud, the serial is optional and auto-resolved when your plant has exactly one inverter.
+- Used to generate unique entity IDs and ensure configuration stability — every entry needs one, but you don't always have to type it.
+- On Modbus **hybrid** inverters, you can leave this blank: once connectivity is confirmed, the integration reads the serial directly from the device and uses it (silently correcting a mistyped value too, if you did type one). **Grid/string** models don't expose this register, so you still need to type it there — if you leave it blank on a grid/string model, the form will ask again.
+- On SolisCloud, the serial is optional and auto-resolved when your plant has exactly one inverter; you only need to type it to disambiguate a plant with multiple inverters.
 
 **Poll Interval**:
 
