@@ -143,6 +143,16 @@ def encode_cid_value(mapping: CloudCidMapping, msg: str) -> dict[int, int] | Non
     return _words_for_raw(raw, mapping.registers, mapping.data_type)
 
 
+def _encode_hex_version(register: int) -> Callable[[str, dict], dict[int, int]]:
+    """Cloud firmware-version fields are 4-hex-char strings (e.g. "4B00"); the Modbus register
+    holds the same value as a raw 16-bit integer (register value == int(hex_string, 16))."""
+
+    def encode(value, detail: dict) -> dict[int, int]:
+        return {register: int(str(value), 16) & 0xFFFF}
+
+    return encode
+
+
 def _encode_battery_power(value: float, detail: dict) -> dict[int, int]:
     """Signed cloud batteryPower (negative = charging) -> magnitude registers + direction flag.
 
@@ -188,6 +198,10 @@ CLOUD_INPUT_MAP: dict[str, CloudFieldMapping] = {m.api_field: m for m in [
     CloudFieldMapping(registers=(33093,), api_field="inverterTemperature", multiplier=0.1, data_type=DataType.S16),
     CloudFieldMapping(registers=(33094,), api_field="fac", multiplier=0.01),
     CloudFieldMapping(registers=(33095,), api_field="currentState", multiplier=0),
+    # Firmware versions (live-verified: inverterDetail "hmiVersionAll"/"dspmVersionAll" are 4-hex-char
+    # strings equal to the raw Modbus register value, e.g. hmiVersionAll "4B00" == register 33002 = 0x4B00)
+    CloudFieldMapping(registers=(33001,), api_field="dspmVersionAll", encoder=_encode_hex_version(33001)),
+    CloudFieldMapping(registers=(33002,), api_field="hmiVersionAll", encoder=_encode_hex_version(33002)),
     # Battery
     CloudFieldMapping(registers=(33133,), api_field="batteryVoltage", multiplier=0.1),
     CloudFieldMapping(registers=(33134,), api_field="storageBatteryCurrent", multiplier=0.1, data_type=DataType.S16),

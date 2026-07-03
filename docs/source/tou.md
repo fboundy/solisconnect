@@ -7,13 +7,13 @@ Solis hybrid inverters expose two independent, non-interacting sets of scheduled
 | | Time-Charging (V1) | Grid Time of Use V2 |
 | --- | --- | --- |
 | Enable switch | `switch.solis_time_of_use` — bit 1 of storage-mode register `43110` | `switch.solis_time_of_use_v2_switch` — bitfield register `43707`, one bit per slot |
-| Slot count | 4 | 6 |
+| Slot count | 5 | 6 |
 | Per-slot fields | Start/end hour+minute for charge and discharge | Start/end hour+minute, target SOC, cut-off voltage, battery current, per slot, for charge and discharge |
 | Charge/discharge current | One global pair (`43141`/`43142`), not per-slot | Per-slot (register offset `+1` in each slot block) |
 | Target SOC | Not available | Per-slot (register offset `+0` in each slot block) |
 | Cut-off voltage | Not available | Per-slot (register offset `+2` in each slot block) |
-| Modbus registers | `43143-43190` | `43707-43791` |
-| SolisCloud support | **Not mapped** — Modbus only | Mapped: control CIDs `5916-5987` |
+| Modbus registers | `43141-43190` | `43707-43791` |
+| SolisCloud support | **Planned, not yet implemented** — control CID `103` exists but only covers 3 of the 5 Modbus slots (see below) | Mapped: control CIDs `5916-5987` |
 | SolisCloud enablement gate | N/A | CID `6798` (`0xAA55`) reports whether the inverter supports V2; SolisConnect does not yet enforce this gate (see caveat below) |
 
 ## Time-Charging (V1)
@@ -22,11 +22,11 @@ The older scheduling mechanism. One shared charge current and one shared dischar
 
 - Enable: bit 1 (`Time of Use`) of the storage-mode bitfield at register `43110` (`switch_sensors.py`). This bit requires either `Self-Use Mode` (bit 0) or `Feed-In Priority Mode` (bit 6) to be conflict-free with the other storage-mode bits.
 - Global settings: `Time-Charging Charge Current` (`43141`) and `Time-Charging Discharge Current` (`43142`), both in amps, editable as `number` entities.
-- Per slot (1-4), each slot is a block of paired hour/minute registers exposed as HA `time` entities:
+- Per slot (1-5), each slot is a block of paired hour/minute registers exposed as HA `time` entities:
   - Charge Start / Charge End
   - Discharge Start / Discharge End
-- Register layout: slot 1 starts at `43143`, slot 2 at `43153`, slot 3 at `43163`, slot 4 at `43173` (each slot block is 8 registers of data plus a 2-register reserved gap).
-- **No SolisCloud mapping exists for any V1 register.** V1 TOU can only be read or controlled over local Modbus. There is no plan tracked to add cloud CIDs for it, since Solis's own control-CID scheme (used by `mkuthan/solis-cloud-control`) is built around V2 semantics.
+- Register layout: slot 1 starts at `43143`, slot 2 at `43153`, slot 3 at `43163`, slot 4 at `43173`, slot 5 at `43183` (each slot block is 8 registers of data plus a 2-register reserved gap).
+- **SolisCloud mapping is planned but not yet implemented.** SolisCloud control CID `103` ("Charge and discharge Settings") can read/write V1 TOU: a single comma-separated string of 18 values covering **3 slots only**, with **per-slot** charge/discharge current — unlike Modbus, where current is one pair shared by all 5 slots. Field order per slot: `ChargeCurrent, DischargeCurrent, ChargeStart(HH:mm), ChargeEnd(HH:mm), DischargeStart(HH:mm), DischargeEnd(HH:mm)`. Source: `SolisCloud_control_api_command_list` workbook, "Hybrid Inverter" sheet. Slots 4 and 5 have no cloud equivalent and would stay Modbus-only even once this is implemented. See the project's working notes for the full implementation plan and the slot/current modeling compromise this mismatch requires.
 
 ## Grid Time of Use V2
 
