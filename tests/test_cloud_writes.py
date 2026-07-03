@@ -123,8 +123,9 @@ async def test_tou_switch_write_marks_pending_until_verify_completes(hass, contr
 
 
 async def test_multi_register_write_without_mapping_raises(controller):
+    """43143/43144 are now mapped (V1 TOU, issue #19); use a genuinely unmapped register pair."""
     with pytest.raises(HomeAssistantError, match="no control CID mapping"):
-        await controller.async_write_holding_registers(43143, [10, 30])
+        await controller.async_write_holding_registers(43200, [10, 30])
 
 
 async def test_tou_time_pair_write_composes_full_slot_from_cache(hass, controller):
@@ -151,6 +152,66 @@ async def test_tou_time_pair_write_composes_full_slot_from_cid_read(hass, contro
         await controller.async_write_holding_registers(43713, [11, 45])
 
     controller.api.async_control.assert_awaited_once_with(SERIAL, 5946, "09:00-11:45", old_value="09:00-10:30")
+
+
+def _seed_v1_tou_cache(hass, charge_current=50, discharge_current=40, hour=6, minute=0):
+    from custom_components.solisconnect.sensor_data.cloud_mapping import V1_TOU_REGISTERS
+
+    values = {43141: charge_current, 43142: discharge_current}
+    for base in (43143, 43153, 43163):
+        for offset in range(0, 8, 2):
+            values[base + offset] = hour
+            values[base + offset + 1] = minute
+    for register in V1_TOU_REGISTERS:
+        hass.data[DOMAIN][VALUES][f"{SERIAL}|{register}"] = values[register]
+
+
+async def test_v1_tou_current_write_broadcasts_to_all_slots(hass, controller):
+    """A single global-current write must compose a CID 103 value with that current applied
+    uniformly across all 3 cloud slots (Modbus has no per-slot current), issue #19."""
+    _seed_v1_tou_cache(hass)
+
+    with patch.object(controller.hass, "async_create_task", side_effect=_close_background_task):
+        await controller.async_write_holding_register(43141, 100)
+
+    args, _kwargs = controller.api.async_control.await_args
+    assert args[1] == 103
+    parts = args[2].split(",")
+    assert len(parts) == 18
+    assert parts[0] == parts[6] == parts[12] == "100"  # new charge current, all slots
+    assert parts[1] == parts[7] == parts[13] == "40"  # discharge current unchanged
+    assert parts[2] == "06:00"  # times preserved
+    assert hass.data[DOMAIN][VALUES][f"{SERIAL}|43141"] == 100
+
+
+async def test_v1_tou_time_field_write_preserves_other_registers(hass, controller):
+    _seed_v1_tou_cache(hass)
+
+    with patch.object(controller.hass, "async_create_task", side_effect=_close_background_task):
+        await controller.async_write_holding_registers(43143, [7, 30])  # slot 1 charge-start -> 07:30
+
+    args, _kwargs = controller.api.async_control.await_args
+    parts = args[2].split(",")
+    assert parts[0] == "50" and parts[1] == "40"  # currents unchanged
+    assert parts[2] == "07:30"  # slot 1 charge start updated
+    assert parts[3] == "06:00"  # slot 1 charge end unchanged
+    assert parts[8] == "06:00"  # slot 2 charge start unchanged
+
+
+async def test_v1_tou_write_composes_from_cid_read_when_cache_incomplete(hass, controller):
+    full_msg = "50,40,06:00,06:00,06:00,06:00,50,40,06:00,06:00,06:00,06:00,50,40,06:00,06:00,06:00,06:00"
+    controller.api.async_at_read = AsyncMock(return_value=full_msg)
+
+    with patch.object(controller.hass, "async_create_task", side_effect=_close_background_task):
+        await controller.async_write_holding_register(43142, 45)  # discharge current only
+
+    # async_at_read(cid=103) is called both to compose the current state and, separately,
+    # to fetch the pre-write old_value for yuanzhi -- so it's called more than once here.
+    controller.api.async_at_read.assert_any_await(SERIAL, 103)
+    args, _kwargs = controller.api.async_control.await_args
+    parts = args[2].split(",")
+    assert parts[1] == parts[7] == parts[13] == "45"
+    assert parts[0] == "50"
 
 
 async def test_tou_switch_write_sends_changed_cid_with_old_bitfield(hass, controller):
@@ -266,3 +327,60 @@ async def test_poll_does_not_overwrite_tou_switch_register_with_pending_write(ha
     await retrieval._update_cycle()
 
     assert hass.data[DOMAIN][VALUES][f"{SERIAL}|43707"] == 0b0101
+
+
+def _mock_group(sensors):
+    group = MagicMock()
+    group.sensors = sensors
+    return group
+
+
+def _mock_sensor_entry(registrars, name="s", enabled=True):
+    m = MagicMock()
+    m.registrars = registrars
+    m.name = name
+    m.enabled = enabled
+    return m
+
+
+class TestV2EnablementGate:
+    """CID 6798 TOU V2 support gate, issue #16."""
+
+    async def test_disables_v2_sensors_when_cid_reports_unsupported(self, hass, controller):
+        v2_sensor = _mock_sensor_entry([43708], name="v2_slot1_soc")
+        other_sensor = _mock_sensor_entry([43110], name="storage_mode")
+        controller._sensor_groups = [_mock_group([v2_sensor, other_sensor])]
+        controller.api.async_at_read = AsyncMock(return_value="0")  # not the supported value
+
+        with patch.object(hass, "async_create_task", side_effect=_close_background_task):
+            retrieval = CloudDataRetrieval(hass=hass, controller=controller, disable_unmapped=True)
+        with patch("custom_components.solisconnect.cloud.cloud_retrieval.mark_platform_entities_unavailable_for_base_sensors") as mock_mark:
+            await retrieval._disable_v2_if_unsupported()
+
+        controller.api.async_at_read.assert_awaited_once_with(SERIAL, 6798)
+        assert v2_sensor.enabled is False
+        assert other_sensor.enabled is True  # unrelated sensors are untouched
+        mock_mark.assert_called_once_with(hass, [v2_sensor])
+
+    async def test_leaves_v2_sensors_enabled_when_cid_reports_supported(self, hass, controller):
+        v2_sensor = _mock_sensor_entry([43708], name="v2_slot1_soc")
+        controller._sensor_groups = [_mock_group([v2_sensor])]
+        controller.api.async_at_read = AsyncMock(return_value="43605")
+
+        with patch.object(hass, "async_create_task", side_effect=_close_background_task):
+            retrieval = CloudDataRetrieval(hass=hass, controller=controller, disable_unmapped=True)
+        await retrieval._disable_v2_if_unsupported()
+
+        assert v2_sensor.enabled is True
+
+    async def test_gate_read_failure_leaves_sensors_unchanged(self, hass, controller):
+        """A failed/undeterminable read must never disable sensors on a guess."""
+        v2_sensor = _mock_sensor_entry([43708], name="v2_slot1_soc")
+        controller._sensor_groups = [_mock_group([v2_sensor])]
+        controller.api.async_at_read = AsyncMock(side_effect=SolisCloudApiError("boom"))
+
+        with patch.object(hass, "async_create_task", side_effect=_close_background_task):
+            retrieval = CloudDataRetrieval(hass=hass, controller=controller, disable_unmapped=True)
+        await retrieval._disable_v2_if_unsupported()
+
+        assert v2_sensor.enabled is True

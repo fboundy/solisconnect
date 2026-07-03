@@ -16,6 +16,9 @@ from custom_components.solisconnect.sensor_data.cloud_mapping import (
     CLOUD_INPUT_MAP,
     TOU_SWITCH_CIDS_BY_BIT,
     TOU_TIME_PAIR_TO_CID,
+    TOU_V2_REGISTERS,
+    V1_TOU_CID,
+    V1_TOU_REGISTERS,
     CloudFieldMapping,
     cid_msg_from_words,
     encode_cid_value,
@@ -275,4 +278,61 @@ def test_registers_covered_includes_inputs_and_cids():
     assert 43707 in covered  # TOU V2 switch bitfield
     assert 43711 in covered  # TOU V2 time slot registers
     assert 43791 in covered  # TOU V2 final discharge end minute
+    assert 43141 in covered  # V1 TOU global charge current
+    assert 43170 in covered  # V1 TOU slot 3 discharge end minute
     assert 33022 not in covered  # RTC deliberately unmapped
+
+
+def test_v1_tou_registers_span_26_registers():
+    assert len(V1_TOU_REGISTERS) == 26
+    assert 43141 in V1_TOU_REGISTERS and 43142 in V1_TOU_REGISTERS
+    assert 43143 in V1_TOU_REGISTERS and 43170 in V1_TOU_REGISTERS
+    assert 43151 not in V1_TOU_REGISTERS  # reserved gap between slot 1 and slot 2
+    assert TOU_V2_REGISTERS.isdisjoint(V1_TOU_REGISTERS)
+
+
+def test_v1_tou_decodes_worked_example_from_issue():
+    """Worked example from issue #19: slot 3's charge current (99) differs from slots 1-2
+    (100), confirming per-slot current in the cloud model; Modbus only has one global
+    register for each, so slot 1's values are taken as the representative Modbus value."""
+    msg = "100,100,09:44,09:44,09:44,09:44,100,100,09:44,09:44,09:44,09:44,99,100,09:44,09:44,09:44,09:44"
+    words = encode_cid_value(CLOUD_CID_MAP[V1_TOU_CID], msg)
+    assert words[43141] == 100  # charge current from slot 1
+    assert words[43142] == 100  # discharge current from slot 1
+    for base in (43143, 43153, 43163):
+        assert words[base] == 9 and words[base + 1] == 44  # charge start
+        assert words[base + 2] == 9 and words[base + 3] == 44  # charge end
+        assert words[base + 4] == 9 and words[base + 5] == 44  # discharge start
+        assert words[base + 6] == 9 and words[base + 7] == 44  # discharge end
+
+
+def test_v1_tou_encodes_registers_broadcasting_current_to_all_slots():
+    """Modbus has no per-slot current, so the single value is broadcast to all 3 cloud slots."""
+    mapping = CLOUD_CID_MAP[V1_TOU_CID]
+    words = [0] * len(mapping.registers)
+    words[0], words[1] = 100, 50  # charge, discharge current
+    for i in range(2, 26):
+        words[i] = 9 if (i - 2) % 2 == 0 else 44
+
+    msg = cid_msg_from_words(mapping, words)
+    parts = msg.split(",")
+    assert len(parts) == 18
+    assert parts[0] == parts[6] == parts[12] == "100"
+    assert parts[1] == parts[7] == parts[13] == "50"
+    assert parts[2] == "09:44"
+
+
+def test_v1_tou_rejects_wrong_value_count():
+    assert encode_cid_value(CLOUD_CID_MAP[V1_TOU_CID], "1,2,3") is None
+
+
+def test_v1_tou_rejects_invalid_time_field():
+    parts = ["100", "100", "25:00", "09:44", "09:44", "09:44"] + ["100", "100", "09:44", "09:44", "09:44", "09:44"] * 2
+    assert encode_cid_value(CLOUD_CID_MAP[V1_TOU_CID], ",".join(parts)) is None
+
+
+def test_v1_tou_encode_rejects_out_of_range_hour():
+    mapping = CLOUD_CID_MAP[V1_TOU_CID]
+    words = [0] * len(mapping.registers)
+    words[2] = 24  # slot 1 charge-start hour out of range
+    assert cid_msg_from_words(mapping, words) is None

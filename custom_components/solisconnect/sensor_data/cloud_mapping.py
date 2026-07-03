@@ -337,6 +337,82 @@ def _tou_v2_mappings() -> list[CloudCidMapping]:
     return mappings
 
 
+# --- V1 TOU (Time-Charging), control CID 103 --------------------------------------------------
+# SolisCloud represents the whole 3-slot Time-Charging schedule as a single comma-separated
+# string of 18 values (3 slots x 6 fields: ChargeCurrent, DischargeCurrent, ChargeStart(HH:mm),
+# ChargeEnd(HH:mm), DischargeStart(HH:mm), DischargeEnd(HH:mm)) via one control CID, unlike V2's
+# one-CID-per-field model. SolisCloud models charge/discharge current *per slot*; Modbus only
+# has one global register for each (43141/43142) shared by all 3 slots — decode takes slot 1's
+# current as the representative Modbus value, and encode broadcasts the single Modbus value to
+# all 3 cloud slots. Source: SolisCloud_control_api_command_list workbook, "Hybrid Inverter"
+# sheet, row 6 (see WORKING_NOTES.md, "Plan: V1 TOU (Time-Charging) Dual-Protocol Support").
+V1_TOU_CID = 103
+_V1_TOU_SLOT_BASES = (43143, 43153, 43163)
+V1_TOU_REGISTERS: tuple[int, ...] = (43141, 43142) + tuple(base + offset for base in _V1_TOU_SLOT_BASES for offset in range(8))
+
+_HH_MM_RE = re.compile(r"^(\d{1,2}):(\d{1,2})$")
+
+
+def _decode_hh_mm(text) -> tuple[int, int] | None:
+    match = _HH_MM_RE.match(str(text).strip())
+    if not match:
+        return None
+    hour, minute = int(match.group(1)), int(match.group(2))
+    if hour > 23 or minute > 59:
+        return None
+    return hour, minute
+
+
+def _decode_v1_tou(msg: str) -> dict[int, int] | None:
+    parts = [p.strip() for p in str(msg).split(",")]
+    if len(parts) != 18:
+        return None
+
+    try:
+        charge_current = round(float(parts[0]))
+        discharge_current = round(float(parts[1]))
+    except ValueError:
+        return None
+
+    words: dict[int, int] = {43141: charge_current, 43142: discharge_current}
+    for slot, base in enumerate(_V1_TOU_SLOT_BASES):
+        time_fields = parts[slot * 6 + 2 : slot * 6 + 6]
+        for pair_index, text in enumerate(time_fields):
+            decoded = _decode_hh_mm(text)
+            if decoded is None:
+                return None
+            words[base + pair_index * 2] = decoded[0]
+            words[base + pair_index * 2 + 1] = decoded[1]
+    return words
+
+
+def _encode_v1_tou(words: list[int]) -> str | None:
+    if len(words) != len(V1_TOU_REGISTERS):
+        return None
+    try:
+        charge_current, discharge_current = int(words[0]), int(words[1])
+        slot_words = [int(w) for w in words[2:]]
+    except (TypeError, ValueError):
+        return None
+
+    parts: list[str] = []
+    for slot in range(3):
+        hm = slot_words[slot * 8 : slot * 8 + 8]
+        if len(hm) != 8 or any(not (0 <= hm[i] <= (23 if i % 2 == 0 else 59)) for i in range(8)):
+            return None
+        charge_start, charge_end, discharge_start, discharge_end = (f"{hm[i]:02d}:{hm[i + 1]:02d}" for i in (0, 2, 4, 6))
+        parts.extend([str(charge_current), str(discharge_current), charge_start, charge_end, discharge_start, discharge_end])
+    return ",".join(parts)
+
+
+_V1_TOU_MAPPING = CloudCidMapping(
+    registers=V1_TOU_REGISTERS,
+    cid=V1_TOU_CID,
+    to_registers=_decode_v1_tou,
+    to_cid_value=_encode_v1_tou,
+)
+
+
 # --- control CID <-> holding registers -------------------------------------------------------
 _CLOUD_CID_MAPPINGS = [
     CloudCidMapping(registers=(43110,), cid=636),  # storage mode bitfield (== Modbus 43110)
@@ -344,6 +420,7 @@ _CLOUD_CID_MAPPINGS = [
     CloudCidMapping(registers=(43011,), cid=158),  # over-discharge SOC %
     CloudCidMapping(registers=(43018,), cid=160),  # force-charge SOC %
     CloudCidMapping(registers=(43074,), cid=696, multiplier=100),  # feed-in power limit (raw = W/100, cid msg = W)
+    _V1_TOU_MAPPING,
 ] + _tou_v2_mappings()
 
 CLOUD_CID_MAP: dict[int, CloudCidMapping] = {m.cid: m for m in _CLOUD_CID_MAPPINGS}
@@ -352,9 +429,15 @@ CLOUD_CID_MAP: dict[int, CloudCidMapping] = {m.cid: m for m in _CLOUD_CID_MAPPIN
 # excluded here: all twelve of them share register 43707, so a plain dict comprehension would
 # silently collapse to whichever mapping iterates last. Writes to 43707 are handled by the
 # dedicated TOU_SWITCH_REGISTER special-case instead; any future caller that looks up 43707
-# here directly should get a clear miss rather than a wrong CID.
+# here directly should get a clear miss rather than a wrong CID. The V1 TOU composite mapping
+# (cid 103) is excluded the same way: its 26 registers share one CID, and individual writes
+# (one register for current, two for a time pair) are routed to _execute_tou_time_write via an
+# explicit V1_TOU_REGISTERS membership check instead of an exact-registers-tuple match.
 REGISTER_TO_CID: dict[int, CloudCidMapping] = {
-    register: mapping for mapping in CLOUD_CID_MAP.values() if mapping.merge_register_bit is None for register in mapping.registers
+    register: mapping
+    for mapping in CLOUD_CID_MAP.values()
+    if mapping.merge_register_bit is None and mapping.cid != V1_TOU_CID
+    for register in mapping.registers
 }
 TOU_SWITCH_REGISTER = 43707
 TOU_SWITCH_CIDS_BY_BIT: dict[int, int] = {
@@ -365,6 +448,13 @@ for mapping in CLOUD_CID_MAP.values():
     if mapping.to_cid_value is _encode_time_slot and len(mapping.registers) == 4:
         TOU_TIME_PAIR_TO_CID[(mapping.registers[0], mapping.registers[1])] = mapping
         TOU_TIME_PAIR_TO_CID[(mapping.registers[2], mapping.registers[3])] = mapping
+
+# CID 6798 reports whether the connected inverter actually supports TOU V2; "43605" (0xAA55)
+# means supported. Register range covered by the V2 switch bitfield + all 6 charge/discharge
+# slot blocks (43707-43791 inclusive).
+TOU_V2_ENABLEMENT_CID = 6798
+TOU_V2_SUPPORTED_VALUE = "43605"
+TOU_V2_REGISTERS: frozenset[int] = frozenset(range(43707, 43792))
 
 
 def cid_msg_from_words(mapping: CloudCidMapping, words: list[int]) -> str | None:

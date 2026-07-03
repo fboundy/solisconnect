@@ -115,6 +115,12 @@ def _patched_api():
             "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
             new=AsyncMock(return_value=[{"id": "CLOUDID1", "sn": SERIAL}]),
         ),
+        # CID 6798 (TOU V2 support gate): report "supported" so existing tests' TOU V2
+        # sensors aren't disabled by the new issue #16 gate check.
+        patch(
+            "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_at_read",
+            new=AsyncMock(return_value="43605"),
+        ),
     )
 
 
@@ -122,8 +128,8 @@ async def test_cloud_only_setup_populates_cache_with_raw_words(hass: HomeAssista
     entry = _cloud_entry()
     entry.add_to_hass(hass)
 
-    detail_patch, batch_patch, list_patch = _patched_api()
-    with detail_patch, batch_patch, list_patch:
+    detail_patch, batch_patch, list_patch, at_read_patch = _patched_api()
+    with detail_patch, batch_patch, list_patch, at_read_patch:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -168,8 +174,8 @@ async def test_cloud_only_entities_update_through_unchanged_classes(hass: HomeAs
     entry = _cloud_entry()
     entry.add_to_hass(hass)
 
-    detail_patch, batch_patch, list_patch = _patched_api()
-    with detail_patch, batch_patch, list_patch:
+    detail_patch, batch_patch, list_patch, at_read_patch = _patched_api()
+    with detail_patch, batch_patch, list_patch, at_read_patch:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -196,8 +202,8 @@ async def test_cloud_write_unmapped_register_raises(hass: HomeAssistant):
     entry = _cloud_entry()
     entry.add_to_hass(hass)
 
-    detail_patch, batch_patch, list_patch = _patched_api()
-    with detail_patch, batch_patch, list_patch:
+    detail_patch, batch_patch, list_patch, at_read_patch = _patched_api()
+    with detail_patch, batch_patch, list_patch, at_read_patch:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
