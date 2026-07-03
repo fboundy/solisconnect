@@ -19,7 +19,9 @@ SETTING_CATEGORIES = {
 }
 
 
-def entity_category_for_sensor_category(category: Category | None) -> EntityCategory | None:
+def entity_category_for_sensor_category(category: Category | None, control: bool = False) -> EntityCategory | None:
+    if control:
+        return None
     if category in SETTING_CATEGORIES:
         return EntityCategory.CONFIG
     return None

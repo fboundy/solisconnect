@@ -12,6 +12,10 @@ def _switch_names(inverter_config: InverterConfig) -> set[str]:
     return {entity["name"] for group in get_switch_sensors(inverter_config) for entity in group["entities"]}
 
 
+def _switch_entities(inverter_config: InverterConfig, register: int) -> list[dict]:
+    return [entity for group in get_switch_sensors(inverter_config) if group.get("register") == register for entity in group["entities"]]
+
+
 def test_ac_coupling_feature_enabled():
     """Test that AC_COUPLING feature is added when option is enabled."""
     options = InverterOptions(ac_coupling=True)
@@ -107,6 +111,67 @@ def test_ac_coupling_switches_enabled_with_ac_coupling_feature():
     assert "AC Coupling Position (off = GEN port, on = Backup port)" in names
     assert "AC Coupling Enable" in names
     assert "With Generator" not in names
+
+
+def test_mode_switch_names_and_disabled_bits():
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+    config = template.clone_with_options(InverterOptions(), "S2_WL_ST")
+
+    by_bit = {entity["bit_position"]: entity for entity in _switch_entities(config, 43110)}
+
+    assert by_bit[0]["name"] == "Mode - Self Use"
+    assert by_bit[1]["name"] == "Mode - Timed Charge"
+    assert by_bit[2]["name"] == "Mode - Off-Grid"
+    assert by_bit[3]["name"] == "Mode - Battery Wake Up"
+    assert by_bit[4]["name"] == "Mode - Backup"
+    assert by_bit[5]["name"] == "Mode - Grid Charge"
+    assert by_bit[6]["name"] == "Mode - Feed In Priority"
+    assert by_bit[7]["name"] == "Mode - Night OVD Retain"
+    assert by_bit[10]["name"] == "Mode - Battery Condition"
+    assert by_bit[11]["name"] == "Mode - Peak Shaving"
+    assert by_bit[8]["enabled"] is False
+    assert by_bit[9]["enabled"] is False
+
+
+def test_timed_charge_enable_switch_names():
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+    config = template.clone_with_options(InverterOptions(), "S2_WL_ST")
+
+    names = [entity["name"] for entity in _switch_entities(config, 43707)]
+
+    assert names == [f"Timed Charge Enable {slot}" for slot in range(1, 13)]
+
+
+def test_timed_charge_number_names_are_normalized():
+    from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors
+
+    entities = {int(entity["register"][0]): entity for group in hybrid_sensors for entity in group.get("entities", []) if entity.get("register")}
+
+    assert entities[43708]["name"] == "Timed Charge SOC 1"
+    assert entities[43709]["name"] == "Timed Charge Current 1"
+    assert entities[43710]["name"] == "Timed Charge Voltage 1"
+    assert entities[43750]["name"] == "Timed Charge SOC 7"
+    assert entities[43751]["name"] == "Timed Charge Current 7"
+    assert entities[43752]["name"] == "Timed Charge Voltage 7"
+    assert entities[43785]["name"] == "Timed Charge SOC 12"
+    assert entities[43786]["name"] == "Timed Charge Current 12"
+    assert entities[43787]["name"] == "Timed Charge Voltage 12"
+    assert entities[43024]["name"] == "Backup Mode SOC"
+
+
+def test_timed_charge_time_names_are_normalized():
+    from custom_components.solisconnect.sensor_data.time_sensors import get_time_sensors
+
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+    config = template.clone_with_options(InverterOptions(), "S2_WL_ST")
+    entities = {entity["register"]: entity for entity in get_time_sensors(config)}
+
+    assert entities[43711]["name"] == "Timed Charge Start 1"
+    assert entities[43713]["name"] == "Timed Charge End 1"
+    assert entities[43753]["name"] == "Timed Charge Start 7"
+    assert entities[43755]["name"] == "Timed Charge End 7"
+    assert entities[43788]["name"] == "Timed Charge Start 12"
+    assert entities[43790]["name"] == "Timed Charge End 12"
 
 
 def test_parallel_feature_disabled_by_default():

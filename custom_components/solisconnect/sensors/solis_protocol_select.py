@@ -1,7 +1,6 @@
 import logging
 
 from homeassistant.components.select import SelectEntity
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from custom_components.solisconnect.const import DOMAIN, PROTOCOL_CLOUD, PROTOCOL_MODBUS
@@ -16,7 +15,6 @@ class SolisProtocolSelect(RestoreEntity, SelectEntity):
     """Chooses which protocol actively polls and takes writes (manual dual mode only)."""
 
     _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:swap-horizontal"
 
     def __init__(self, hass, hub):

@@ -3443,6 +3443,60 @@ hybrid_sensors = [
 ]
 ## Remove 33132 in next update if this works (43110)
 
+
+def _apply_control_metadata() -> None:
+    direct_control_names = {
+        "Max Charge SOC",
+        "Overdischarge SOC",
+        "Max Charge Current",
+        "Max Discharge Current",
+        "Force Charge SOC",
+        "Battery Max Charge Current",
+        "Battery Max Discharge Current",
+    }
+    direct_control_renames = {
+        "Backup SOC": "Backup Mode SOC",
+    }
+
+    timed_charge_registers: dict[int, tuple[str, int]] = {}
+    for slot in range(1, 7):
+        charge_base = 43708 + ((slot - 1) * 7)
+        timed_charge_registers[charge_base] = ("SOC", slot)
+        timed_charge_registers[charge_base + 1] = ("Current", slot)
+        timed_charge_registers[charge_base + 2] = ("Voltage", slot)
+
+        discharge_slot = slot + 6
+        discharge_base = 43750 + ((slot - 1) * 7)
+        timed_charge_registers[discharge_base] = ("SOC", discharge_slot)
+        timed_charge_registers[discharge_base + 1] = ("Current", discharge_slot)
+        timed_charge_registers[discharge_base + 2] = ("Voltage", discharge_slot)
+
+    for group in hybrid_sensors:
+        for entity in group.get("entities", []):
+            if entity.get("type") == "reserve":
+                continue
+
+            if entity["name"] in direct_control_renames:
+                entity["name"] = direct_control_renames[entity["name"]]
+
+            if entity["name"] in direct_control_names or entity["name"] in direct_control_renames.values():
+                entity["control"] = True
+
+            registers = entity.get("register", [])
+            if len(registers) != 1:
+                continue
+
+            register = int(registers[0])
+            timed_control = timed_charge_registers.get(register)
+            if timed_control:
+                field, slot = timed_control
+                entity["name"] = f"Timed Charge {field} {slot}"
+                entity["control"] = True
+
+
+_apply_control_metadata()
+
+
 hybrid_sensors_derived = [
     {
         "name": "Last Modbus Success",

@@ -34,10 +34,12 @@ class SolisBinaryEntity(RestoreEntity, SwitchEntity):
         self._on_value = entity_definition.get("on_value", None)
         self._off_value = entity_definition.get("off_value", None)
         self._inverted = entity_definition.get("inverted", None)
+        self._control = entity_definition.get("control", False)
         self._attr_unique_id = unique_id_generator_binary(modbus_controller, self._register, self._bit_position, self._on_value)
         self._attr_name = entity_definition["name"]
         self._attr_available = False
-        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_entity_category = None if self._control else EntityCategory.CONFIG
+        self._attr_entity_registry_enabled_default = entity_definition.get("enabled", True)
 
     async def async_added_to_hass(self) -> None:
         """Called when entity is added to HA."""
