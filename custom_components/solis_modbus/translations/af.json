@@ -1,5 +1,5 @@
 {
-  "title": "Solis Modbus",
+  "title": "SolisConnect",
   "config": {
     "step": {
       "user": {
@@ -75,7 +75,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Wysig Solis Modbus-instellings",
+        "title": "Wysig SolisConnect-instellings",
         "description": "Verander die instellings vir jou Solis-omsetter. (herbegin word aanbeveel)",
         "data": {
           "poll_interval_fast": "Vinnige polsinterval (sekondes)",

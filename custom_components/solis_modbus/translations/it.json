@@ -1,5 +1,5 @@
 {
-  "title": "Solis Modbus",
+  "title": "SolisConnect",
   "config": {
     "step": {
       "user": {
@@ -75,7 +75,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Modifica Impostazioni Solis Modbus",
+        "title": "Modifica Impostazioni SolisConnect",
         "description": "Cambia le impostazioni per il tuo inverter Solis. (riavvio richiesto)",
         "data": {
           "poll_interval_fast": "Intervallo di Aggiornamento Veloce (secondi)",

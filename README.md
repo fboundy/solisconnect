@@ -1,29 +1,29 @@
-# Solis Modbus Integration for Home Assistant
+# SolisConnect for Home Assistant
 
 ## Description
 
-The Solis Modbus Integration for Home Assistant is a streamlined solution to connect your Solis inverter with Home Assistant. This integration was inspired by [fboundy's ha_solis_modbus](https://github.com/fboundy/ha_solis_modbus/tree/main). However, it enhances the native Modbus integration in Home Assistant by consolidating multiple register queries into single calls, eliminating unnecessary overhead.
+SolisConnect for Home Assistant is a streamlined solution to connect your Solis inverter with Home Assistant. This integration was inspired by [fboundy's ha_solis_modbus](https://github.com/fboundy/ha_solis_modbus/tree/main). However, it enhances the native Modbus integration in Home Assistant by consolidating multiple register queries into single calls, eliminating unnecessary overhead.
 ## Documentation
-https://solis-modbus.readthedocs.io/
+https://solisconnect.readthedocs.io/
 
 ## Solis cloud
 You will lose access, unless you use a waveshare device. You will still have the option to disable the modbus, when updates are required.
-https://github.com/Pho3niX90/solis_modbus/discussions/154
+https://github.com/fboundy/solisconnect/discussions/154
 
 ## Installation
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Pho3niX90&repository=solis_modbus&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fboundy&repository=solisconnect&category=integration)
 
-To install the Solis Modbus Integration, follow these steps:
+To install SolisConnect, follow these steps:
 
 1. Open your Home Assistant instance.
 2. Navigate to the "HACS".
 3. Click the 3 dots menu
-![img.png](https://raw.githubusercontent.com/Pho3niX90/solis_modbus/master/img.png)
+![img.png](https://raw.githubusercontent.com/fboundy/solisconnect/main/images/img.png)
 4. Click on "Custom Repositories"
-![img_1.png](https://raw.githubusercontent.com/Pho3niX90/solis_modbus/master/img_1.png)
-5. Fill in the repository "https://github.com/Pho3niX90/solis_modbus", and category "Integration"
-6. Now search for "Solis Modbus"
-![img_2.png](https://raw.githubusercontent.com/Pho3niX90/solis_modbus/master/img_2.png)
+![img_1.png](https://raw.githubusercontent.com/fboundy/solisconnect/main/images/img_1.png)
+5. Fill in the repository "https://github.com/fboundy/solisconnect", and category "Integration"
+6. Now search for "SolisConnect"
+![img_2.png](https://raw.githubusercontent.com/fboundy/solisconnect/main/images/img_2.png)
 7. Click on Download
 
 ## Total Sensors
@@ -35,7 +35,7 @@ Whilst the solis inverters do provide total sensors for today, yesterday, month 
 ## Setup
 1. Navigate to Settings -> Devices & Services
 2. Click on "+ Add Integration"
-3. Search for "Solis Modbus"
+3. Search for "SolisConnect"
 4. Follow the configuration steps:
 
 ### Configuration
@@ -60,7 +60,7 @@ As of version 4.0+, the integration uses the **Inverter Serial Number** to gener
 **Deprecated Settings**:
 - **Identification**: This field has been removed from the setup form. If you previously used it, the integration will still read it internally to migrate your old entities, but it is no longer user-configurable.
 
-`Connection Type`: S2 is the default option, only select waveshare if you are using a waveshare device, and some sensors are higher than normal, see here https://solis-modbus.readthedocs.io/en/latest/sensors.html#waveshare
+`Connection Type`: S2 is the default option, only select waveshare if you are using a waveshare device, and some sensors are higher than normal, see here https://solisconnect.readthedocs.io/en/latest/sensors.html#waveshare
 
 # [JK BMS](https://github.com/Pho3niX90/jk-bms-card)
 Get the card here : https://github.com/Pho3niX90/jk-bms-card
@@ -249,30 +249,30 @@ Card inspiration from https://github.com/slipx06/Sunsynk-Home-Assistant-Dash
 Solis and equivalent Axitec, Zonneplan inverters
 
 - **S6-EH3P**
-- - S6-EH3P20K-H (https://github.com/Pho3niX90/solis_modbus/issues/93)
+- - S6-EH3P20K-H (https://github.com/fboundy/solisconnect/issues/93)
 - - S6-EH3P15K-H
 - - S6-EH3P(12-20)K-H
 - - S6-EH1P6K-L-PRO
 - - S6-EH1P6K-L-PLUS
-- - S6-EH3P10K-H-ZP (https://github.com/Pho3niX90/solis_modbus/issues/191)
-- - S6-EH3P10K-H-EU (https://github.com/Pho3niX90/solis_modbus/issues/202)
+- - S6-EH3P10K-H-ZP (https://github.com/fboundy/solisconnect/issues/191)
+- - S6-EH3P10K-H-EU (https://github.com/fboundy/solisconnect/issues/202)
 - **S6-GR1P**
-- - S6-GR1P4K (https://github.com/Pho3niX90/solis_modbus/issues/84)
+- - S6-GR1P4K (https://github.com/fboundy/solisconnect/issues/84)
 - **S5-EH1**
-- - S5-EH1(3-6)K-L (https://github.com/Pho3niX90/solis_modbus/issues/89)
-- - S5-EH1P5K-L (https://github.com/Pho3niX90/solis_modbus/issues/94)
-- - S5-EH1P6K-L (https://github.com/Pho3niX90/solis_modbus/issues/94#issuecomment-2656512651)
+- - S5-EH1(3-6)K-L (https://github.com/fboundy/solisconnect/issues/89)
+- - S5-EH1P5K-L (https://github.com/fboundy/solisconnect/issues/94)
+- - S5-EH1P6K-L (https://github.com/fboundy/solisconnect/issues/94#issuecomment-2656512651)
 - **S5-GC**
-- - S5-GC30K (https://github.com/Pho3niX90/solis_modbus/issues/173)
-- - S5-GC60K (https://github.com/Pho3niX90/solis_modbus/issues/180#issuecomment-2887414843)
+- - S5-GC30K (https://github.com/fboundy/solisconnect/issues/173)
+- - S5-GC60K (https://github.com/fboundy/solisconnect/issues/180#issuecomment-2887414843)
 - **RAI-***
-- - RAI-3K-48ES-5G (https://github.com/Pho3niX90/solis_modbus/issues/174)
+- - RAI-3K-48ES-5G (https://github.com/fboundy/solisconnect/issues/174)
 - **RHI-***
-- - RHI-3K-48ES-5G (https://github.com/Pho3niX90/solis_modbus/issues/97#issuecomment-2639807764)
+- - RHI-3K-48ES-5G (https://github.com/fboundy/solisconnect/issues/97#issuecomment-2639807764)
 - **3P(3-20)K-4G**
-- - 3P6K-4G (https://github.com/Pho3niX90/solis_modbus/issues/210)
+- - 3P6K-4G (https://github.com/fboundy/solisconnect/issues/210)
 - **1P(2.5-6)K-4G**
-- - https://github.com/Pho3niX90/solis_modbus/issues/230
+- - https://github.com/fboundy/solisconnect/issues/230
 
 **Wifi Dongles Tested**
 - S2_WL_ST
@@ -293,5 +293,5 @@ Alternatively, this integration makes it much easier https://github.com/mayerwin
 
 #### ⚠️ Note on Reconfiguration
 If the reconfiguration flow does not ask for your **Serial Number**, please delete the device and re-add it as a new device.
-* **Tip:** Rename the new device to match your old device's name and select **"Recreate Entity IDs"** during setup. This will ensure your history and dashboards remain functional. as mentioned here [Comment by 0rangutan](https://github.com/Pho3niX90/solis_modbus/pull/309#issuecomment-3638890631)
+* **Tip:** Rename the new device to match your old device's name and select **"Recreate Entity IDs"** during setup. This will ensure your history and dashboards remain functional. as mentioned here [Comment by 0rangutan](https://github.com/fboundy/solisconnect/pull/309#issuecomment-3638890631)
 

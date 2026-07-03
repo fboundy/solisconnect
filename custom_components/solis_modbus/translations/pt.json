@@ -1,5 +1,5 @@
 {
-  "title": "Solis Modbus",
+  "title": "SolisConnect",
   "config": {
     "step": {
       "user": {
@@ -75,7 +75,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Modificar configurações do Solis Modbus",
+        "title": "Modificar configurações do SolisConnect",
         "description": "Altere as configurações do seu inversor Solis. (reinicialização recomendada)",
         "data": {
           "poll_interval_fast": "Intervalo de pesquisa rápida (segundos)",

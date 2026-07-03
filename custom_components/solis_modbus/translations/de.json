@@ -1,5 +1,5 @@
 {
-  "title": "Solis Modbus",
+  "title": "SolisConnect",
   "config": {
     "step": {
       "user": {
@@ -75,7 +75,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Solis Modbus-Einstellungen ändern",
+        "title": "SolisConnect-Einstellungen ändern",
         "description": "Ändern Sie die Einstellungen für Ihren Solis-Wechselrichter. (Neustart empfohlen)",
         "data": {
           "poll_interval_fast": "Schnelles Abfrageintervall (Sekunden)",

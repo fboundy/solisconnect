@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "Solis Modbus"
+project = "SolisConnect"
 copyright = "2023, Pho3niX90"
 author = "Pho3niX90"
 
