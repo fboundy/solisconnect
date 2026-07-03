@@ -37,7 +37,7 @@ The TOU V2 timed-slot CID family (`5916-5987`) is mapped into SolisConnect's loc
 
 SolisCloud also reports the inverter's `HMI Version` (register `33001` "DSP Version" and `33002` "HMI Version" are populated from the `inverterDetail` fields `dspmVersionAll`/`hmiVersionAll`) so firmware version sensors work the same in cloud-only mode as they do over Modbus.
 
-**Not yet supported over cloud:** the older `Time-Charging` (TOU V1) schedule is Modbus-only. SolisCloud control CID `103` can drive 3 of its 5 time slots (with per-slot charge/discharge current, unlike Modbus's single global current), but that mapping has not been implemented yet — see the project's working notes for the full field layout and implementation plan.
+**Not yet supported over cloud:** the older `Time-Charging` (TOU V1) schedule is Modbus-only. SolisCloud control CID `103` can drive all 3 of its time slots (with per-slot charge/discharge current, unlike Modbus's single global current), but that mapping has not been implemented yet — see the project's working notes for the full field layout and implementation plan. Note SolisConnect currently also defines a "Slot 4" and "Slot 5" for this schedule (registers `43173-43190`) that the official Modbus protocol document does not support — see `docs/source/tou.md` for details; treat those two slots as unverified.
 
 ## Operational notes
 
