@@ -254,6 +254,90 @@ async def test_flow_user_grid_model_skips_serial_detection(hass: HomeAssistant):
 
 
 @pytest.mark.asyncio
+async def test_flow_user_blank_serial_auto_detected_from_device(hass: HomeAssistant):
+    """The serial field is optional: a hybrid model can be set up without typing it at all."""
+    device_serial_registers = _encode_serial_registers("1234567890123456")
+
+    async def fake_read_input_register(register, count):
+        if register == 33004:
+            return device_serial_registers
+        return [1]
+
+    with (
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch(
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
+            side_effect=fake_read_input_register,
+        ),
+        patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={"connection_type": CONN_TYPE_TCP})
+
+        config_input = {
+            "host": "1.2.3.4",
+            "port": 502,
+            "slave": 1,
+            "model": "S6-EH1P",
+            "connection": "S2_WL_ST",
+            "has_v2": True,
+            "has_pv": True,
+            "has_ac_coupling": False,
+            "has_parallel": False,
+            "has_battery": True,
+            "has_hv_battery": False,
+            "has_generator": False,
+            # inverter_serial omitted entirely
+        }
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input=config_input)
+
+        assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+        assert result["data"]["inverter_serial"] == "1234567890123456"
+
+
+@pytest.mark.asyncio
+async def test_flow_user_blank_serial_without_detection_shows_error(hass: HomeAssistant):
+    """A grid model with no typed serial has no way to auto-detect one; the form must ask again."""
+
+    async def fake_read_input_register(register, count):
+        if register == 33004:
+            return None  # grid models don't expose this range anyway; belt-and-braces
+        return [1]
+
+    with (
+        patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
+        patch(
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
+            side_effect=fake_read_input_register,
+        ),
+        patch("custom_components.solisconnect.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={"connection_type": CONN_TYPE_TCP})
+
+        config_input = {
+            "host": "1.2.3.4",
+            "port": 502,
+            "slave": 1,
+            "model": "S6-GR1P",
+            "connection": "S2_WL_ST",
+            "has_v2": True,
+            "has_pv": True,
+            "has_ac_coupling": False,
+            "has_parallel": False,
+            "has_battery": True,
+            "has_hv_battery": False,
+            "has_generator": False,
+            # inverter_serial omitted; grid model can't auto-detect it
+        }
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input=config_input)
+
+        assert result["type"] == data_entry_flow.FlowResultType.FORM
+        assert result["step_id"] == "config"
+        assert "manually" in result["errors"]["base"]
+
+
+@pytest.mark.asyncio
 async def test_flow_user_connection_error(hass: HomeAssistant):
     """Test user initialized flow with connection error."""
     with patch(

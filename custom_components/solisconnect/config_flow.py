@@ -75,7 +75,11 @@ PARITY_OPTIONS = {"N": "None", "E": "Even", "O": "Odd"}
 # Base schema with common fields (for both TCP and Serial)
 BASE_CONFIG_SCHEMA = {
     vol.Required(CONF_CONNECTION_TYPE, default=CONN_TYPE_TCP): vol.In(CONNECTION_TYPES),
-    vol.Required(CONF_INVERTER_SERIAL): str,
+    # Optional: hybrid inverters have their serial read from the device (registers
+    # 33004-33019) once connectivity is confirmed, so it doesn't need to be typed. Grid/
+    # string models don't expose that register range, so _create_entry_from_input (and the
+    # dual-mode Modbus step) re-check after validation and ask again if it's still blank.
+    vol.Optional(CONF_INVERTER_SERIAL, default=""): str,
     vol.Required("slave", default=1): int,
     vol.Optional("poll_interval_fast", default=10): vol.All(int, vol.Range(min=10)),
     vol.Optional("poll_interval_normal", default=15): vol.All(int, vol.Range(min=15)),
@@ -537,6 +541,17 @@ class ModbusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 schema_dict = SERIAL_CONFIG_SCHEMA
 
             return self.async_show_form(step_id="config", data_schema=vol.Schema(schema_dict), errors=errors)
+
+        # 2b. The serial field is optional because hybrid models auto-detect it during
+        # validation above; grid/string models don't expose that register range, so if it's
+        # still blank at this point there's no way to identify the device — ask for it.
+        if not (data.get(CONF_INVERTER_SERIAL) or "").strip():
+            errors["base"] = "Could not detect the inverter serial automatically; please enter it manually."
+            if data.get(CONF_CONNECTION_TYPE) == CONN_TYPE_TCP:
+                schema_dict = TCP_CONFIG_SCHEMA
+            else:
+                schema_dict = SERIAL_CONFIG_SCHEMA
+            return self.async_show_form(step_id="config", data_schema=self.add_suggested_values_to_schema(vol.Schema(schema_dict), data), errors=errors)
 
         # 3. Check for Duplicates
         if CONF_INVERTER_SERIAL in data:
