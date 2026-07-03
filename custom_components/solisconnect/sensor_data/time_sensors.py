@@ -18,14 +18,6 @@ def get_time_sensors(inverter_config):
             {"name": "Time-Charging Charge End (Slot 3)", "register": 43165, "enabled": True},
             {"name": "Time-Charging Discharge Start (Slot 3)", "register": 43167, "enabled": True},
             {"name": "Time-Charging Discharge End (Slot 3)", "register": 43169, "enabled": True},
-            {"name": "Time-Charging Charge Start (Slot 4)", "register": 43173, "enabled": True},
-            {"name": "Time-Charging Charge End (Slot 4)", "register": 43175, "enabled": True},
-            {"name": "Time-Charging Discharge Start (Slot 4)", "register": 43177, "enabled": True},
-            {"name": "Time-Charging Discharge End (Slot 4)", "register": 43179, "enabled": True},
-            {"name": "Time-Charging Charge Start (Slot 5)", "register": 43183, "enabled": True},
-            {"name": "Time-Charging Charge End (Slot 5)", "register": 43185, "enabled": True},
-            {"name": "Time-Charging Discharge Start (Slot 5)", "register": 43187, "enabled": True},
-            {"name": "Time-Charging Discharge End (Slot 5)", "register": 43189, "enabled": True},
         ]
 
     if inverter_config.type == InverterType.HYBRID or InverterFeature.V2 in inverter_config.features:

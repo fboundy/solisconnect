@@ -150,6 +150,24 @@ def test_battery_power_encoder_discharging():
     assert (words[33149] << 16 | words[33150]) == 2000
 
 
+def test_hmi_version_encoder_decodes_hex_string():
+    mapping = CLOUD_INPUT_MAP["hmiVersionAll"]
+    words = mapping.encoder("4B00", {})
+    assert words == {33002: 0x4B00}
+
+
+def test_dsp_version_encoder_decodes_hex_string():
+    mapping = CLOUD_INPUT_MAP["dspmVersionAll"]
+    words = mapping.encoder("4200", {})
+    assert words == {33001: 0x4200}
+
+
+def test_version_encoder_rejects_non_hex_value():
+    mapping = CLOUD_INPUT_MAP["hmiVersionAll"]
+    with pytest.raises(ValueError):
+        mapping.encoder("not-hex", {})
+
+
 def test_negative_value_for_unsigned_register_is_dropped():
     mapping = CLOUD_INPUT_MAP["batteryCapacitySoc"]  # U16
     assert encode_engineering_value(mapping, -5, None) is None

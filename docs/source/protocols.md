@@ -33,7 +33,11 @@ Current cloud write support is limited to verified CIDs and CID families:
 
 Cloud writes read the previous CID value, send the control command, update the cache optimistically, and verify after SolisCloud catches up. If the cloud value does not match, SolisConnect restores the value reported by the device.
 
-The TOU V2 timed-slot CID family (`5916-5987`) is mapped into SolisConnect's local `43707-43791` register model. The remaining caveat is feature detection: SolisCloud CID `6798` reports whether TOU V2 is enabled (`43605` / `0xAA55`), but SolisConnect does not yet use that gate to hide or disable the TOU V2 cloud mappings automatically.
+The TOU V2 timed-slot CID family (`5916-5987`) is mapped into SolisConnect's local `43707-43791` register model. The remaining caveat is feature detection: SolisCloud CID `6798` reports whether TOU V2 is enabled (`43605` / `0xAA55`), but SolisConnect does not yet use that gate to hide or disable the TOU V2 cloud mappings automatically. As a related data point, TOU V2 hardware/firmware shipped from HMI version `FB00` onward (see below); this is not yet used as an alternate detection signal either.
+
+SolisCloud also reports the inverter's `HMI Version` (register `33001` "DSP Version" and `33002` "HMI Version" are populated from the `inverterDetail` fields `dspmVersionAll`/`hmiVersionAll`) so firmware version sensors work the same in cloud-only mode as they do over Modbus.
+
+**Not yet supported over cloud:** the older `Time-Charging` (TOU V1) schedule is Modbus-only. SolisCloud control CID `103` can drive all 3 of its time slots (with per-slot charge/discharge current, unlike Modbus's single global current), but that mapping has not been implemented yet — see the project's working notes for the full field layout and implementation plan.
 
 ## Operational notes
 

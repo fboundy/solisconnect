@@ -93,14 +93,6 @@ The hybrid inverter uses the following register ranges:
 | Solis Time-Charging Charge End (Slot 3)      | 43165    |
 | Solis Time-Charging Discharge Start (Slot 3) | 43167    |
 | Solis Time-Charging Discharge End (Slot 3)   | 43169    |
-| Solis Time-Charging Charge Start (Slot 4)    | 43173    |
-| Solis Time-Charging Charge End (Slot 4)      | 43175    |
-| Solis Time-Charging Discharge Start (Slot 4) | 43177    |
-| Solis Time-Charging Discharge End (Slot 4)   | 43179    |
-| Solis Time-Charging Charge Start (Slot 5)    | 43183    |
-| Solis Time-Charging Charge End (Slot 5)      | 43185    |
-| Solis Time-Charging Discharge Start (Slot 5) | 43187    |
-| Solis Time-Charging Discharge End (Slot 5)   | 43189    |
 
 # Hybrid Inverter Sensors
 | Name                                                      | Device Class   | Unit Of Measurement        | State Class      | Registers                              |
@@ -225,22 +217,6 @@ The hybrid inverter uses the following register ranges:
 | Solis Time-Charging Discharge Start Minute (Slot 3)       |                | MINUTES                    | MEASUREMENT      | 43168                                  |
 | Solis Time-Charging Discharge End Hour (Slot 3)           |                | HOURS                      | MEASUREMENT      | 43169                                  |
 | Solis Time-Charging Discharge End Minute (Slot 3)         |                | MINUTES                    | MEASUREMENT      | 43170                                  |
-| Solis Time-Charging Charge Start Hour (Slot 4)            |                | HOURS                      | MEASUREMENT      | 43173                                  |
-| Solis Time-Charging Charge Start Minute (Slot 4)          |                | MINUTES                    | MEASUREMENT      | 43174                                  |
-| Solis Time-Charging Charge End Hour (Slot 4)              |                | HOURS                      | MEASUREMENT      | 43175                                  |
-| Solis Time-Charging Charge End Minute (Slot 4)            |                | MINUTES                    | MEASUREMENT      | 43176                                  |
-| Solis Time-Charging Discharge Start Hour (Slot 4)         |                | HOURS                      | MEASUREMENT      | 43177                                  |
-| Solis Time-Charging Discharge Start Minute (Slot 4)       |                | MINUTES                    | MEASUREMENT      | 43178                                  |
-| Solis Time-Charging Discharge End Hour (Slot 4)           |                | HOURS                      | MEASUREMENT      | 43179                                  |
-| Solis Time-Charging Discharge End Minute (Slot 4)         |                | MINUTES                    | MEASUREMENT      | 43180                                  |
-| Solis Time-Charging Charge Start Hour (Slot 5)            |                | HOURS                      | MEASUREMENT      | 43183                                  |
-| Solis Time-Charging Charge Start Minute (Slot 5)          |                | MINUTES                    | MEASUREMENT      | 43184                                  |
-| Solis Time-Charging Charge End Hour (Slot 5)              |                | HOURS                      | MEASUREMENT      | 43185                                  |
-| Solis Time-Charging Charge End Minute (Slot 5)            |                | MINUTES                    | MEASUREMENT      | 43186                                  |
-| Solis Time-Charging Discharge Start Hour (Slot 5)         |                | HOURS                      | MEASUREMENT      | 43187                                  |
-| Solis Time-Charging Discharge Start Minute (Slot 5)       |                | MINUTES                    | MEASUREMENT      | 43188                                  |
-| Solis Time-Charging Discharge End Hour (Slot 5)           |                | HOURS                      | MEASUREMENT      | 43189                                  |
-| Solis Time-Charging Discharge End Minute (Slot 5)         |                | MINUTES                    | MEASUREMENT      | 43190                                  |
 | Solis Export Calibration                                  | POWER          | WATT                       | MEASUREMENT      | 43195                                  |
 | Solis Forced Start of Generator                           |                |                            | MEASUREMENT      | 43363                                  |
 | Solis Rated Input Power of Generator                      | POWER          |                            | MEASUREMENT      | 43364                                  |
