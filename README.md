@@ -15,23 +15,23 @@ Protocol verification status: ⚪ = not yet verified. The columns will be filled
 
 | Type          | Inverter          | Modbus | Cloud | Combined |
 | ------------- | ----------------- | :----: | :---: | :------: |
-| S6-EH3P       | [S6-EH3P20K-H]    |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH3P20K-H      |   ⚪   |  ⚪   |    ⚪    |
 | S6-EH3P       | S6-EH3P15K-H      |   ⚪   |  ⚪   |    ⚪    |
 | S6-EH3P       | S6-EH3P(12-20)K-H |   ⚪   |  ⚪   |    ⚪    |
 | S6-EH3P       | S6-EH1P6K-L-PRO   |   ⚪   |  ⚪   |    ⚪    |
 | S6-EH3P       | S6-EH1P6K-L-PLUS  |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | [S6-EH3P10K-H-ZP] |   ⚪   |  ⚪   |    ⚪    |
-| S6-EH3P       | [S6-EH3P10K-H-EU] |   ⚪   |  ⚪   |    ⚪    |
-| S6-GR1P       | [S6-GR1P4K]       |   ⚪   |  ⚪   |    ⚪    |
-| S5-EH1        | [S5-EH1(3-6)K-L]  |   ⚪   |  ⚪   |    ⚪    |
-| S5-EH1        | [S5-EH1P5K-L]     |   ⚪   |  ⚪   |    ⚪    |
-| S5-EH1        | [S5-EH1P6K-L]     |   ⚪   |  ⚪   |    ⚪    |
-| S5-GC         | [S5-GC30K]        |   ⚪   |  ⚪   |    ⚪    |
-| S5-GC         | [S5-GC60K]        |   ⚪   |  ⚪   |    ⚪    |
-| RAI-\*        | [RAI-3K-48ES-5G]  |   ⚪   |  ⚪   |    ⚪    |
-| RHI-\*        | [RHI-3K-48ES-5G]  |   ⚪   |  ⚪   |    ⚪    |
-| 3P(3-20)K-4G  | [3P6K-4G]         |   ⚪   |  ⚪   |    ⚪    |
-| 1P(2.5-6)K-4G | [1P(2.5-6)K-4G]   |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH3P10K-H-ZP   |   ⚪   |  ⚪   |    ⚪    |
+| S6-EH3P       | S6-EH3P10K-H-EU   |   ⚪   |  ⚪   |    ⚪    |
+| S6-GR1P       | S6-GR1P4K         |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | S5-EH1(3-6)K-L    |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | S5-EH1P5K-L       |   ⚪   |  ⚪   |    ⚪    |
+| S5-EH1        | S5-EH1P6K-L       |   ⚪   |  ⚪   |    ⚪    |
+| S5-GC         | S5-GC30K          |   ⚪   |  ⚪   |    ⚪    |
+| S5-GC         | S5-GC60K          |   ⚪   |  ⚪   |    ⚪    |
+| RAI-\*        | RAI-3K-48ES-5G    |   ⚪   |  ⚪   |    ⚪    |
+| RHI-\*        | RHI-3K-48ES-5G    |   ⚪   |  ⚪   |    ⚪    |
+| 3P(3-20)K-4G  | 3P6K-4G           |   ⚪   |  ⚪   |    ⚪    |
+| 1P(2.5-6)K-4G | 1P(2.5-6)K-4G     |   ⚪   |  ⚪   |    ⚪    |
 
 ## Credits and Acknowledgements
 
