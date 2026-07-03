@@ -6,6 +6,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from custom_components.solisconnect.const import REGISTER, VALUE
 from custom_components.solisconnect.helpers import cache_get, is_correct_controller, register_update_signal
+from custom_components.solisconnect.sensors.entity_category import entity_category_for_sensor_category
 from custom_components.solisconnect.sensors.solis_base_sensor import SolisBaseSensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class SolisNumberEntity(RestoreNumber, NumberEntity):
         self._attr_state_class = sensor.state_class
         self._attr_native_unit_of_measurement = sensor.unit_of_measurement
         self._attr_available = not sensor.hidden and sensor.enabled
+        self._attr_entity_category = entity_category_for_sensor_category(getattr(sensor, "category", None))
 
         self._received_values = {}
 

@@ -52,6 +52,7 @@ class SolisBaseSensor:
         identification=None,
         poll_speed=PollSpeed.NORMAL,
         data_type: str | None = None,
+        value_format: str | None = None,
     ):
         """
         :param name: Sensor name
@@ -90,6 +91,7 @@ class SolisBaseSensor:
         self.poll_speed = poll_speed
         self.category = category
         self.identification = identification
+        self.value_format = value_format
 
         self.dynamic_adjustments()
 
@@ -169,7 +171,9 @@ class SolisBaseSensor:
             if getattr(self, "data_type", None) == DataType.S16.value and raw > 32767:
                 raw -= 65536
 
-            if self.multiplier == 0 or self.multiplier == 1:
+            if self.value_format == "hex":
+                n_value = f"0x{raw & 0xFFFF:04X}"
+            elif self.multiplier == 0 or self.multiplier == 1:
                 n_value = round(raw)
             else:
                 n_value = raw * self.multiplier
@@ -229,6 +233,7 @@ class SolisSensorGroup:
                     default=entity.get("default", 0),
                     multiplier=entity.get("multiplier", 1),
                     data_type=entity.get("data_type", None),
+                    value_format=entity.get("value_format", None),
                     unique_id=unique_id_generator(controller, entity),
                     poll_speed=definition.get("poll_speed", PollSpeed.NORMAL),
                 ),

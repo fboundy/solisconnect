@@ -33,6 +33,7 @@ hybrid_sensors = [
                 "category": Category.BASIC_INFORMATION,
                 "register": ["33001"],
                 "multiplier": 0,
+                "value_format": "hex",
             },
             {
                 "name": "HMI Version",
@@ -40,6 +41,7 @@ hybrid_sensors = [
                 "category": Category.BASIC_INFORMATION,
                 "register": ["33002"],
                 "multiplier": 0,
+                "value_format": "hex",
             },
             {
                 "name": "Protocol Version",

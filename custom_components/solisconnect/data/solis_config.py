@@ -90,7 +90,7 @@ def inverter_options_from_config(config: dict, template: InverterConfig) -> Inve
         pv=config.get("has_pv", template.type in (InverterType.HYBRID, InverterType.GRID, InverterType.WAVESHARE)),
         ac_coupling=config.get("has_ac_coupling", False),
         parallel=config.get("has_parallel", False),
-        generator=config.get("has_generator", True),
+        generator=config.get("has_generator", False),
         battery=config.get("has_battery", True),
         hv_battery=config.get("has_hv_battery", False),
     )
