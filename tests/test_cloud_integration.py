@@ -418,9 +418,17 @@ async def test_dual_flow_cloud_model_overrides_wrong_modbus_model(hass: HomeAssi
     from custom_components.solisconnect.config_flow import CONN_TYPE_BOTH
     from custom_components.solisconnect.const import CONN_TYPE_TCP, PROTO_BOTH_FAILOVER
 
+    async def fake_read_input_register(register, count):
+        if register == 33004:
+            return None  # no serial data; the Modbus serial stays "sn999" as typed
+        return [1]
+
     with (
         patch("custom_components.solisconnect.modbus_controller.ModbusController.connect", return_value=True),
-        patch("custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register", return_value=[1]),
+        patch(
+            "custom_components.solisconnect.modbus_controller.ModbusController.async_read_input_register",
+            side_effect=fake_read_input_register,
+        ),
         patch(
             "custom_components.solisconnect.cloud.api_client.SolisCloudApiClient.async_inverter_list",
             new=AsyncMock(return_value=[{"id": "1", "sn": "sn999", "productModel": "3102"}]),
