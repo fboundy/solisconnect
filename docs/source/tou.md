@@ -7,12 +7,12 @@ Solis hybrid inverters expose two independent, non-interacting sets of scheduled
 | | Time-Charging (V1) | Grid Time of Use V2 |
 | --- | --- | --- |
 | Enable switch | `switch.solis_time_of_use` — bit 1 of storage-mode register `43110` | `switch.solis_time_of_use_v2_switch` — bitfield register `43707`, one bit per slot |
-| Slot count | 3 (see caveat below) | 6 |
+| Slot count | 3 | 6 |
 | Per-slot fields | Start/end hour+minute for charge and discharge | Start/end hour+minute, target SOC, cut-off voltage, battery current, per slot, for charge and discharge |
 | Charge/discharge current | One global pair (`43141`/`43142`), not per-slot | Per-slot (register offset `+1` in each slot block) |
 | Target SOC | Not available | Per-slot (register offset `+0` in each slot block) |
 | Cut-off voltage | Not available | Per-slot (register offset `+2` in each slot block) |
-| Modbus registers | `43141-43170` (documented slots 1-3); SolisConnect also defines `43173-43190` as "slots 4-5" — **not backed by the vendor protocol, likely a bug**, see caveat | `43707-43791` |
+| Modbus registers | `43141-43170` | `43707-43791` |
 | SolisCloud support | **Planned, not yet implemented** — control CID `103` exists and covers exactly the 3 vendor-documented slots (see below) | Mapped: control CIDs `5916-5987` |
 | SolisCloud enablement gate | N/A | CID `6798` (`0xAA55`) reports whether the inverter supports V2; SolisConnect does not yet enforce this gate (see caveat below) |
 
@@ -27,15 +27,7 @@ The older scheduling mechanism. One shared charge current and one shared dischar
   - Discharge Start / Discharge End
 - Register layout: slot 1 starts at `43143`, slot 2 at `43153`, slot 3 at `43163` (each slot block is 8 registers of data plus a 2-register reserved gap).
 - **SolisCloud mapping is planned but not yet implemented.** SolisCloud control CID `103` ("Charge and discharge Settings") can read/write V1 TOU: a single comma-separated string of 18 values covering all 3 slots, with **per-slot** charge/discharge current — unlike Modbus, where current is one pair shared by all slots. Field order per slot: `ChargeCurrent, DischargeCurrent, ChargeStart(HH:mm), ChargeEnd(HH:mm), DischargeStart(HH:mm), DischargeEnd(HH:mm)`. Source: `SolisCloud_control_api_command_list` workbook, "Hybrid Inverter" sheet. See the project's working notes for the full implementation plan.
-
-### Known issue: "Slot 4" and "Slot 5" entities are likely fictional
-
-SolisConnect's `hybrid_sensors.py`/`time_sensors.py` also define a "Slot 4" (`43173-43180`) and "Slot 5" (`43183-43190`) for Time-Charging. This is **not supported by any known source**:
-
-- The official Solis RS485_MODBUS Hybrid Inverter protocol document defines only slot 1 (`43141-43150`) and marks the entire remaining range through `43249` as `Reserved` — no vendor documentation for a repeating 3-slot (or 5-slot) pattern exists in that document; slots 2-3 are themselves undocumented extensions that happen to work in practice.
-- SolisCloud's control CID `103` independently confirms exactly 3 slots and no more.
-
-So registers `43173-43190` ("slots 4-5" in the current entity definitions) fall inside the vendor's documented `Reserved` block, with no independent source confirming they do anything real. These entities may be reading/writing to registers that don't correspond to Time-Charging at all. This is tracked as an open bug — see the project's working notes for status before relying on Slot 4/5 entities for anything.
+- The official Solis RS485_MODBUS Hybrid Inverter protocol document only documents slot 1 (`43141-43150`); slots 2-3 (`43153`, `43163`) are undocumented in that particular revision but independently confirmed by SolisCloud control CID `103`, which covers exactly these 3 slots and no more. (An earlier version of SolisConnect also defined a "Slot 4" and "Slot 5" at `43173-43190`; these fell entirely inside the vendor's documented `Reserved` range with no confirmation from any source and have been removed.)
 
 ## Grid Time of Use V2
 
