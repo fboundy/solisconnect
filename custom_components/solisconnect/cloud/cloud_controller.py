@@ -67,6 +67,10 @@ class SolisCloudController(SolisControllerBase):
         # Delayed write-verify tasks; cancelled on close_connection so they cannot
         # touch the cache after the entry is unloaded.
         self._verify_tasks: set[asyncio.Task] = set()
+        # Registers with an optimistic write awaiting verify; CloudDataRetrieval skips
+        # republishing these from its regular poll so a poll landing inside the verify
+        # window can't overwrite the just-written value with stale cloud-side data.
+        self._pending_write_registers: set[int] = set()
 
     @property
     def host(self) -> str:
@@ -88,6 +92,10 @@ class SolisCloudController(SolisControllerBase):
     def last_modbus_success(self) -> datetime | None:
         """Name kept for parity with ModbusController consumers (pseudo-register 90006)."""
         return self.last_cloud_success
+
+    def is_write_pending(self, register: int) -> bool:
+        """True while an optimistic write to this register is still awaiting its delayed verify."""
+        return register in self._pending_write_registers
 
     def _mapping_for_write(self, registers: list[int]) -> CloudCidMapping:
         mapping = REGISTER_TO_CID.get(registers[0])
@@ -134,6 +142,7 @@ class SolisCloudController(SolisControllerBase):
             cache_save(self.hass, self, register, word)
             notify_register_update(self.hass, self, register, word)
 
+        self._pending_write_registers.update(mapping.registers)
         self._start_verify_task(self._verify_write(mapping, words))
 
     async def _execute_tou_time_write(self, mapping: CloudCidMapping, write_registers: list[int], write_words: list[int]):
@@ -197,6 +206,7 @@ class SolisCloudController(SolisControllerBase):
         _LOGGER.info("SolisCloud write: TOU switch register %s = %s (was %s)", TOU_SWITCH_REGISTER, new_value, old_value)
         cache_save(self.hass, self, TOU_SWITCH_REGISTER, new_value)
         notify_register_update(self.hass, self, TOU_SWITCH_REGISTER, new_value)
+        self._pending_write_registers.add(TOU_SWITCH_REGISTER)
         self._start_verify_task(self._verify_tou_switch_write(new_value))
 
     async def _read_tou_switch_bitfield(self) -> int:
@@ -212,54 +222,60 @@ class SolisCloudController(SolisControllerBase):
 
     async def _verify_write(self, mapping: CloudCidMapping, expected_words: list[int]):
         """Re-read the CID after the cloud catches up; never leave an optimistic lie in the cache."""
-        actual_words = None
-        for _attempt in range(2):
-            await asyncio.sleep(_VERIFY_DELAY_SECONDS)
-            try:
-                msg = await self.api.async_at_read(self.serial_number, mapping.cid)
-            except SolisCloudApiError as error:
-                _LOGGER.warning("Verify read of cid %s failed: %s", mapping.cid, error)
-                continue
-            decoded = encode_cid_value(mapping, msg)
-            actual_words = [decoded[r] for r in mapping.registers] if decoded else None
-            if actual_words == expected_words:
-                _LOGGER.debug("SolisCloud write of cid %s verified", mapping.cid)
-                return
+        try:
+            actual_words = None
+            for _attempt in range(2):
+                await asyncio.sleep(_VERIFY_DELAY_SECONDS)
+                try:
+                    msg = await self.api.async_at_read(self.serial_number, mapping.cid)
+                except SolisCloudApiError as error:
+                    _LOGGER.warning("Verify read of cid %s failed: %s", mapping.cid, error)
+                    continue
+                decoded = encode_cid_value(mapping, msg)
+                actual_words = [decoded[r] for r in mapping.registers] if decoded else None
+                if actual_words == expected_words:
+                    _LOGGER.debug("SolisCloud write of cid %s verified", mapping.cid)
+                    return
 
-        if actual_words is not None and actual_words != expected_words:
-            _LOGGER.warning(
-                "SolisCloud write of cid %s did not stick: wrote %s, device reports %s — restoring device value",
-                mapping.cid,
-                expected_words,
-                actual_words,
-            )
-            for register, word in zip(mapping.registers, actual_words):
-                cache_save(self.hass, self, register, word)
-                notify_register_update(self.hass, self, register, word)
+            if actual_words is not None and actual_words != expected_words:
+                _LOGGER.warning(
+                    "SolisCloud write of cid %s did not stick: wrote %s, device reports %s — restoring device value",
+                    mapping.cid,
+                    expected_words,
+                    actual_words,
+                )
+                for register, word in zip(mapping.registers, actual_words):
+                    cache_save(self.hass, self, register, word)
+                    notify_register_update(self.hass, self, register, word)
+        finally:
+            self._pending_write_registers.difference_update(mapping.registers)
 
     async def _verify_tou_switch_write(self, expected_value: int):
         """Verify the composed TOU switch bitfield by reading the twelve switch CIDs."""
-        actual_value = None
-        for _attempt in range(2):
-            await asyncio.sleep(_VERIFY_DELAY_SECONDS)
-            try:
-                actual_value = await self._read_tou_switch_bitfield()
-            except SolisCloudApiError as error:
-                _LOGGER.warning("Verify read of TOU switch CIDs failed: %s", error)
-                continue
-            if actual_value == expected_value:
-                _LOGGER.debug("SolisCloud write of TOU switch register %s verified", TOU_SWITCH_REGISTER)
-                return
+        try:
+            actual_value = None
+            for _attempt in range(2):
+                await asyncio.sleep(_VERIFY_DELAY_SECONDS)
+                try:
+                    actual_value = await self._read_tou_switch_bitfield()
+                except SolisCloudApiError as error:
+                    _LOGGER.warning("Verify read of TOU switch CIDs failed: %s", error)
+                    continue
+                if actual_value == expected_value:
+                    _LOGGER.debug("SolisCloud write of TOU switch register %s verified", TOU_SWITCH_REGISTER)
+                    return
 
-        if actual_value is not None and actual_value != expected_value:
-            _LOGGER.warning(
-                "SolisCloud write of TOU switch register %s did not stick: wrote %s, device reports %s — restoring device value",
-                TOU_SWITCH_REGISTER,
-                expected_value,
-                actual_value,
-            )
-            cache_save(self.hass, self, TOU_SWITCH_REGISTER, actual_value)
-            notify_register_update(self.hass, self, TOU_SWITCH_REGISTER, actual_value)
+            if actual_value is not None and actual_value != expected_value:
+                _LOGGER.warning(
+                    "SolisCloud write of TOU switch register %s did not stick: wrote %s, device reports %s — restoring device value",
+                    TOU_SWITCH_REGISTER,
+                    expected_value,
+                    actual_value,
+                )
+                cache_save(self.hass, self, TOU_SWITCH_REGISTER, actual_value)
+                notify_register_update(self.hass, self, TOU_SWITCH_REGISTER, actual_value)
+        finally:
+            self._pending_write_registers.discard(TOU_SWITCH_REGISTER)
 
     async def async_read_holding_register(self, register, count=1):
         """Read from the cloud-backed cache, with a live TOU switch read for cold-cache bit toggles."""

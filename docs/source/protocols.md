@@ -31,7 +31,7 @@ Current cloud write support is limited to verified CIDs and CID families:
 | `5947-5963`, `5966-5986` | `43709-43710`, ... / `43751-43752`, ... | TOU V2 slot current/voltage values |
 | `5946`, `5949`, `5952`, `5955`, `5958`, `5961`, `5964`, `5968`, `5972`, `5976`, `5980`, `5987` | `43711-43714`, ... / `43753-43756`, ... | TOU V2 `HH:MM-HH:MM` time slots |
 
-Cloud writes read the previous CID value, send the control command, update the cache optimistically, and verify after SolisCloud catches up. If the cloud value does not match, SolisConnect restores the value reported by the device.
+Cloud writes read the previous CID value, send the control command, update the cache optimistically, and verify after SolisCloud catches up. If the cloud value does not match, SolisConnect restores the value reported by the device. While a write's verify is pending (up to ~15-30s), the regular poll cycle skips republishing that specific register so it can't overwrite the optimistic value with stale cloud-side data in the meantime.
 
 The TOU V2 timed-slot CID family (`5916-5987`) is mapped into SolisConnect's local `43707-43791` register model. The remaining caveat is feature detection: SolisCloud CID `6798` reports whether TOU V2 is enabled (`43605` / `0xAA55`), but SolisConnect does not yet use that gate to hide or disable the TOU V2 cloud mappings automatically. As a related data point, TOU V2 hardware/firmware shipped from HMI version `FB00` onward (see below); this is not yet used as an alternate detection signal either.
 

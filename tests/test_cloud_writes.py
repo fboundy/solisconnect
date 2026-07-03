@@ -94,6 +94,34 @@ async def test_verify_mismatch_restores_device_truth(hass, controller):
     assert hass.data[DOMAIN][VALUES][f"{SERIAL}|43110"] == 35  # device truth restored
 
 
+async def test_write_marks_pending_until_verify_completes(hass, controller):
+    """Bug #11: a register must stay marked pending for the whole verify window, then clear."""
+    with patch.object(controller.hass, "async_create_task", side_effect=_close_background_task):
+        await controller.async_write_holding_register(43110, 33)
+
+    assert controller.is_write_pending(43110) is True  # verify task not run yet (closed instead)
+
+    controller.api.async_at_read = AsyncMock(return_value="33")
+    with patch("custom_components.solisconnect.cloud.cloud_controller.asyncio.sleep", new=AsyncMock()):
+        await controller._verify_write(CLOUD_CID_MAP[636], [33])
+
+    assert controller.is_write_pending(43110) is False
+
+
+async def test_tou_switch_write_marks_pending_until_verify_completes(hass, controller):
+    controller.api.async_at_read_batch = AsyncMock(return_value={5916: "0", 5917: "0"})  # cold-cache bitfield read
+    with patch.object(controller.hass, "async_create_task", side_effect=_close_background_task):
+        await controller.async_write_holding_register(43707, 0b0101)
+
+    assert controller.is_write_pending(43707) is True
+
+    controller.api.async_at_read_batch = AsyncMock(return_value={5916: "1", 5918: "1"})
+    with patch("custom_components.solisconnect.cloud.cloud_controller.asyncio.sleep", new=AsyncMock()):
+        await controller._verify_tou_switch_write(0b0101)
+
+    assert controller.is_write_pending(43707) is False
+
+
 async def test_multi_register_write_without_mapping_raises(controller):
     with pytest.raises(HomeAssistantError, match="no control CID mapping"):
         await controller.async_write_holding_registers(43143, [10, 30])
@@ -209,3 +237,32 @@ class TestMergeSwitchBits:
         hass.data[DOMAIN][VALUES][f"{SERIAL}|43707"] = 0b0110  # bits 1 and 2 set
         batch = {5916: "1"}  # only bit 0 observed this cycle
         assert retrieval._merge_switch_bits(batch) == {43707: 0b0111}
+
+
+async def test_poll_does_not_overwrite_register_with_pending_write(hass, controller):
+    """Bug #11: a poll landing inside the write-verify window must not stomp the optimistic value."""
+    hass.data[DOMAIN][VALUES][f"{SERIAL}|43110"] = 33  # optimistic write already applied
+    controller._pending_write_registers.add(43110)
+    controller.inverter_id = "id1"
+    controller.api.async_inverter_detail = AsyncMock(return_value={})
+    controller.api.async_at_read_batch = AsyncMock(return_value={636: "99"})  # stale cloud-side value
+
+    with patch.object(hass, "async_create_task", side_effect=_close_background_task):
+        retrieval = CloudDataRetrieval(hass=hass, controller=controller)
+    await retrieval._update_cycle()
+
+    assert hass.data[DOMAIN][VALUES][f"{SERIAL}|43110"] == 33
+
+
+async def test_poll_does_not_overwrite_tou_switch_register_with_pending_write(hass, controller):
+    hass.data[DOMAIN][VALUES][f"{SERIAL}|43707"] = 0b0101
+    controller._pending_write_registers.add(43707)
+    controller.inverter_id = "id1"
+    controller.api.async_inverter_detail = AsyncMock(return_value={})
+    controller.api.async_at_read_batch = AsyncMock(return_value={5916: "1", 5917: "1", 5918: "1"})
+
+    with patch.object(hass, "async_create_task", side_effect=_close_background_task):
+        retrieval = CloudDataRetrieval(hass=hass, controller=controller)
+    await retrieval._update_cycle()
+
+    assert hass.data[DOMAIN][VALUES][f"{SERIAL}|43707"] == 0b0101

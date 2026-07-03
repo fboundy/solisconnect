@@ -104,12 +104,14 @@ class CloudDataRetrieval:
                     continue  # the API returns extra related CIDs beyond those requested
                 if mapping.merge_register_bit is not None:
                     continue  # TOU V2 switch bits are merged together below, not per-CID
+                if any(controller.is_write_pending(register) for register in mapping.registers):
+                    continue  # an optimistic write is still awaiting its delayed verify; don't stomp on it
                 words = encode_cid_value(mapping, msg)
                 if words:
                     self._publish_words(words)
                     cid_words += len(words)
 
-            switch_words = self._merge_switch_bits(batch)
+            switch_words = None if controller.is_write_pending(TOU_SWITCH_REGISTER) else self._merge_switch_bits(batch)
             if switch_words:
                 self._publish_words(switch_words)
                 cid_words += len(switch_words)
