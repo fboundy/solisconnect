@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from custom_components.solisconnect.data.solis_config import SOLIS_INVERTERS
+
+_LOGGER = logging.getLogger(__name__)
 
 MODEL_NAMES = tuple(sorted((inverter.model for inverter in SOLIS_INVERTERS), key=len, reverse=True))
 
@@ -55,4 +58,10 @@ def infer_model_from_cloud_record(record: dict | None) -> str | None:
         if normalized in PRODUCT_CODE_TO_MODEL:
             return PRODUCT_CODE_TO_MODEL[normalized]
 
+    _LOGGER.warning(
+        "SolisCloud reported inverter metadata that does not match any known model name or "
+        "product code: %s. Please report this metadata (e.g. via a GitHub issue) so the "
+        "product code can be added to PRODUCT_CODE_TO_MODEL for automatic detection.",
+        metadata,
+    )
     return None
