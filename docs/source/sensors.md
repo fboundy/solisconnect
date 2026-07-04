@@ -5,7 +5,7 @@ myst:
 
 The following sensors are provided in the integration.
 
-Local Modbus entries can populate the full register set for the selected inverter model. SolisCloud entries use the same entity definitions, but only registers covered by the current cloud field/CID mappings update in cloud-only mode; unsupported cloud-only entities are marked unavailable. TOU V2 timed-slot CIDs are mapped into the local `43707-43791` register model, but automatic TOU V2 feature gating from cloud CID `6798` is still pending.
+Local Modbus entries can populate the full register set for the selected inverter model. SolisCloud entries use the same entity definitions, but only registers covered by the current cloud field/CID mappings update in cloud-only mode; unsupported cloud-only entities are marked unavailable. TOU V2 timed-slot CIDs are mapped into the local `43707-43791` register model, and automatic TOU V2 feature gating from cloud CID `6798` disables those entities in cloud-only mode when the inverter does not support V2.
 
 # String Inverter Registers
 The string inverter uses the following register ranges:
@@ -35,18 +35,18 @@ The hybrid inverter uses the following register ranges:
 # Switch Control Sensors
 | Name                                                                    | Register | Bit Position | Note                                                                                                                                                                                                                                                                                       |
 |-------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Solis Self-Use Mode                                                     | 43110    | 0            |
-| Solis Time Of Use Mode                                                  | 43110    | 1            |
-| Solis OFF-Grid Mode                                                     | 43110    | 2            |
-| Solis Battery Wakeup Switch                                             | 43110    | 3            |
-| Solis Reserve Battery Mode                                              | 43110    | 4            |
-| Solis Allow Grid To Charge The Battery                                  | 43110    | 5            |
-| Solis Feed In Priority Mode                                             | 43110    | 6            |
-| Solis Batt OVC                                                          | 43110    | 7            |
-| Solis Battery Forcecharge Peakshaving                                   | 43110    | 8            |
-| Solis Battery current correction                                        | 43110    | 9            |
-| Solis Battery healing mode                                              | 43110    | 10           |
-| Solis Peak-shaving mode                                                 | 43110    | 11           |
+| Mode - Self Use                                                         | 43110    | 0            |
+| Timed Charge Status                                                     | 43110    | 1            | **Read-only** `binary_sensor` (not a switch): this bit does not persist as a user-set value on this firmware family. Use register `43707` per-slot switches for real TOU enablement.                                                                                                       |
+| Mode - Off-Grid                                                         | 43110    | 2            |
+| Mode - Battery Wake Up                                                  | 43110    | 3            |
+| Mode - Backup                                                           | 43110    | 4            |
+| Mode - Grid Charge                                                      | 43110    | 5            |
+| Mode - Feed In Priority                                                 | 43110    | 6            |
+| Mode - Night OVD Retain                                                 | 43110    | 7            |
+| Battery Forcecharge Peakshaving                                         | 43110    | 8            | Disabled by default                                                                                                                                                                                                                                                                        |
+| Battery Current Correction                                              | 43110    | 9            | Disabled by default                                                                                                                                                                                                                                                                        |
+| Mode - Battery Condition                                                | 43110    | 10           |
+| Mode - Peak Shaving                                                     | 43110    | 11           |
 | Solis Generator connection position                                     | 43365    | 0            |
 | Solis With Generator                                                    | 43365    | 1            |
 | Solis Generator enable signal                                           | 43365    | 2            |

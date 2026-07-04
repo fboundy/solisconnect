@@ -35,6 +35,7 @@ def generate_scenario(filename, serial=None, identification=None, host="1.2.3.4"
         known_sensors.append(uid)
 
     from custom_components.solisconnect.data.solis_config import InverterConfig, InverterType
+    from custom_components.solisconnect.sensor_data.binary_sensors import get_binary_sensors
     from custom_components.solisconnect.sensor_data.select_sensors import get_select_sensors
     from custom_components.solisconnect.sensor_data.switch_sensors import get_switch_sensors
     from custom_components.solisconnect.sensor_data.time_sensors import get_time_sensors
@@ -47,6 +48,15 @@ def generate_scenario(filename, serial=None, identification=None, host="1.2.3.4"
         for entity in group["entities"]:
             # Logic from SolisBinaryEntity
             # Switch entities get their register injected from the group in switch.py
+            register = group.get("register", group.get("read_register")) + entity.get("offset", 0)
+            bit_position = entity.get("bit_position")
+            on_value = entity.get("on_value")
+            uid = unique_id_generator_binary(controller, register, bit_position, on_value)
+            known_sensors.append(uid)
+
+    # Binary sensor (read-only bit status; same unique_id scheme as switch)
+    for group in get_binary_sensors(config):
+        for entity in group["entities"]:
             register = group.get("register", group.get("read_register")) + entity.get("offset", 0)
             bit_position = entity.get("bit_position")
             on_value = entity.get("on_value")

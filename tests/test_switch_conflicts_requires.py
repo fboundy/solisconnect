@@ -76,33 +76,6 @@ async def test_requires_tou(mock_hass, controller):
 
 
 @pytest.mark.asyncio
-async def test_timed_charge_switch_clears_incompatible_modes(mock_hass, controller):
-    """Turning on Mode - Timed Charge while in Peak Shaving must clear bit 11 and fall
-    back to Self-Use, not write an invalid combo the firmware rejects (the bounce)."""
-    from custom_components.solisconnect.data.solis_config import SOLIS_INVERTERS, InverterOptions
-    from custom_components.solisconnect.sensor_data.switch_sensors import get_switch_sensors
-
-    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
-    config = template.clone_with_options(InverterOptions(), "S2_WL_ST")
-    entity_def = next(
-        entity for group in get_switch_sensors(config) if group.get("register") == 43110 for entity in group["entities"] if entity["bit_position"] == 1
-    )
-    entity_def = {**entity_def, "register": 43110, "write_register": None}
-
-    initial = set_bit(0, 11, True)  # Peak Shaving active, no Self-Use/Feed-In
-
-    with (
-        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_get", return_value=initial),
-        patch("custom_components.solisconnect.sensors.solis_binary_sensor.cache_save"),
-    ):
-        entity = SolisBinaryEntity(mock_hass, controller, entity_def)
-        await entity.set_register_bit(True)
-
-        expected = set_bit(set_bit(0, 0, True), 1, True)  # Peak Shaving cleared, Self-Use + TOU set
-        controller.async_write_holding_register.assert_awaited_once_with(43110, expected)
-
-
-@pytest.mark.asyncio
 async def test_conflicts_and_requires_combined(mock_hass, controller):
     entity_def = {
         "register": 43110,

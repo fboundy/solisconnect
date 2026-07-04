@@ -120,7 +120,9 @@ def test_mode_switch_names_and_disabled_bits():
     by_bit = {entity["bit_position"]: entity for entity in _switch_entities(config, 43110)}
 
     assert by_bit[0]["name"] == "Mode - Self Use"
-    assert by_bit[1]["name"] == "Mode - Timed Charge"
+    # Bit 1 (Timed Charge / TOU) is intentionally NOT a switch entity: it does not persist
+    # on this firmware family (see sensor_data/binary_sensors.py for the read-only status).
+    assert 1 not in by_bit
     assert by_bit[2]["name"] == "Mode - Off-Grid"
     assert by_bit[3]["name"] == "Mode - Battery Wake Up"
     assert by_bit[4]["name"] == "Mode - Backup"

@@ -36,18 +36,23 @@ def get_select_sensors(inverter_config):
                 "name": "Work Mode",
                 "control": True,
                 "entities": [
-                    # Adheres to RS485_MODBUS ESINV-33000ID Hybrid Inverter V3.2 / Appendix 8.
-                    # Each option clears every OTHER mode bit it is incompatible with; the
-                    # previous lists conflicted with their own bit and never cleared the
-                    # Timed Charge bit (1), so switching modes could leave invalid bit
-                    # combos that the inverter rejects/normalises (controls "bounce off"),
-                    # and plain "Self-Use"/"Feed-in" could never turn TOU back off.
-                    {"bit_position": 0, "name": "Self-Use", "conflicts_with": [1, 2, 6, 11]},
-                    {"bit_position": 0, "name": "Self-Use + TOU", "conflicts_with": [2, 6, 11], "requires": [1]},
-                    {"bit_position": 2, "name": "Off-Grid Operation", "conflicts_with": [0, 1, 6, 11]},
-                    {"bit_position": 6, "name": "Feed-in Priority", "conflicts_with": [0, 1, 2, 11]},
-                    {"bit_position": 6, "name": "Feed-in + TOU", "conflicts_with": [0, 2, 11], "requires": [1]},
-                    {"bit_position": 11, "name": "Peak Shaving", "conflicts_with": [0, 1, 2, 4, 6]},
+                    # Whole-register values, not per-bit conflicts_with/requires logic.
+                    # Bit-conflict resolution previously used here could compute a
+                    # technically valid, conflict-free combo (per RS485_MODBUS Appendix 7)
+                    # that the firmware would still silently reject/normalise (e.g. bit 1,
+                    # "Timed Charge", never persists on this firmware family - see
+                    # binary_sensors.py). These 8 values are copied from the field-tested
+                    # option_dict in https://github.com/wills106/homeassistant-solax-modbus
+                    # (plugin_solis_fb00.py, "Energy Storage Control Switch"), which never
+                    # includes bit 1 for the same reason.
+                    {"name": "Self-Use - No Grid Charging", "on_value": 1},
+                    {"name": "Backup/Reserve - No Grid Charging", "on_value": 17},
+                    {"name": "Self-Use", "on_value": 33},
+                    {"name": "Off-Grid Mode", "on_value": 37},
+                    {"name": "Battery Awaken", "on_value": 41},
+                    {"name": "Backup/Reserve", "on_value": 49},
+                    {"name": "Feed-in priority - No Grid Charging", "on_value": 64},
+                    {"name": "Feed-in priority", "on_value": 96},
                 ],
             },
         ]

@@ -257,54 +257,58 @@ def _work_mode_definition():
     return next(group for group in get_select_sensors(config) if group["name"] == "Work Mode")
 
 
-def _apply_option_bits(current: int, option: dict) -> int:
-    """Mirror SolisSelectEntity.set_register_bit's bit arithmetic for one option."""
-    value = current
-    for bit in option.get("conflicts_with", []):
-        value = set_bit(value, bit, False)
-    for bit in option.get("requires", []):
-        value = set_bit(value, bit, True)
-    return set_bit(value, option["bit_position"], True)
+# The 8 field-tested whole-register values copied from wills106/homeassistant-solax-modbus
+# (plugin_solis_fb00.py). None includes bit 1 (Timed Charge / TOU), which does not persist
+# on this firmware family.
+_WORK_MODE_VALUES = {
+    "Self-Use - No Grid Charging": 1,
+    "Backup/Reserve - No Grid Charging": 17,
+    "Self-Use": 33,
+    "Off-Grid Mode": 37,
+    "Battery Awaken": 41,
+    "Backup/Reserve": 49,
+    "Feed-in priority - No Grid Charging": 64,
+    "Feed-in priority": 96,
+}
 
 
-def _resolve_option(register_value: int, options: list[dict]) -> str | None:
-    """Mirror SolisSelectEntity.current_option's resolution logic."""
-    sorted_options = sorted(options, key=lambda e: len(e.get("requires", [])) if "requires" in e else 0, reverse=True)
-    for e in sorted_options:
-        bit_position = e.get("bit_position")
-        requires = e.get("requires")
-        if bit_position is not None and (register_value >> bit_position) & 1:
-            if requires:
-                if all((register_value >> rbit) & 1 for rbit in requires):
-                    return e["name"]
-            else:
-                return e["name"]
-    return None
-
-
-@pytest.mark.parametrize("start_bits", [0b1, 0b11, 0b100, 0b1000010, 0b100000000001, 0b100011])
-def test_work_mode_options_round_trip_from_any_mode(start_bits):
-    """Every Work Mode option must land on a register state that resolves back to itself,
-    regardless of the mode the inverter was in before (the old definitions left stale mode
-    bits set, e.g. picking "Self-Use" never cleared TOU so it read back as "Self-Use + TOU",
-    and cross-mode transitions produced combos the firmware rejects)."""
-    definition = _work_mode_definition()
-    options = definition["entities"]
-
-    for option in options:
-        result = _apply_option_bits(start_bits, option)
-        assert _resolve_option(result, options) == option["name"], (
-            f"Selecting {option['name']!r} from {start_bits:#014b} produced {result:#014b}, which resolves to {_resolve_option(result, options)!r}"
-        )
-
-
-def test_work_mode_plain_options_clear_tou_bit():
-    """Picking a mode without "+ TOU" must actually turn the Timed Charge bit off."""
+def test_work_mode_definition_matches_solax_values():
+    """The Work Mode options must be the exact solax_modbus-validated whole-register values,
+    with no bit-conflict logic and no bit-1 (Timed Charge) option."""
     definition = _work_mode_definition()
     by_name = {e["name"]: e for e in definition["entities"]}
 
-    tou_on = 0b11  # Self-Use + TOU active
-    assert (_apply_option_bits(tou_on, by_name["Self-Use"]) >> 1) & 1 == 0
-    assert (_apply_option_bits(tou_on, by_name["Feed-in Priority"]) >> 1) & 1 == 0
-    assert (_apply_option_bits(tou_on, by_name["Peak Shaving"]) >> 1) & 1 == 0
-    assert (_apply_option_bits(tou_on, by_name["Off-Grid Operation"]) >> 1) & 1 == 0
+    assert set(by_name) == set(_WORK_MODE_VALUES)
+    for name, expected in _WORK_MODE_VALUES.items():
+        assert by_name[name]["on_value"] == expected
+        assert "bit_position" not in by_name[name]
+        assert "conflicts_with" not in by_name[name]
+        # No option sets bit 1 (Timed Charge) - it doesn't persist on this firmware.
+        assert (expected >> 1) & 1 == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("name", "value"), list(_WORK_MODE_VALUES.items()))
+async def test_work_mode_option_writes_whole_register_value(mock_hass, mock_controller, name, value):
+    """Selecting a Work Mode option writes its whole-register value directly (no bit math)."""
+    definition = _work_mode_definition()
+
+    with (
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=0),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_save"),
+    ):
+        entity = SolisSelectEntity(mock_hass, mock_controller, definition)
+        entity.async_write_ha_state = MagicMock()
+        await entity.async_select_option(name)
+
+        mock_controller.async_write_holding_register.assert_awaited_once_with(43110, value)
+
+
+@pytest.mark.parametrize(("name", "value"), list(_WORK_MODE_VALUES.items()))
+def test_work_mode_current_option_resolves_each_value(mock_hass, mock_controller, name, value):
+    """current_option must map each whole-register value back to its option name."""
+    definition = _work_mode_definition()
+
+    with patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=value):
+        entity = SolisSelectEntity(mock_hass, mock_controller, definition)
+        assert entity.current_option == name
