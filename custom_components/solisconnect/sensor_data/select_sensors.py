@@ -36,13 +36,18 @@ def get_select_sensors(inverter_config):
                 "name": "Work Mode",
                 "control": True,
                 "entities": [
-                    # Adheres to RS485_MODBUS ESINV-33000ID Hybrid Inverter V3.2 / Appendix 8
-                    {"bit_position": 0, "name": "Self-Use", "conflicts_with": [0, 6, 11]},
-                    {"bit_position": 0, "name": "Self-Use + TOU", "conflicts_with": [0, 6, 11], "requires": [1]},
-                    {"bit_position": 2, "name": "Off-Grid Operation", "conflicts_with": [0, 1, 2]},
-                    {"bit_position": 6, "name": "Feed-in Priority", "conflicts_with": [0, 6, 11]},
-                    {"bit_position": 6, "name": "Feed-in + TOU", "conflicts_with": [0, 6, 11], "requires": [1]},
-                    {"bit_position": 11, "name": "Peak Shaving", "conflicts_with": [0, 4, 6, 11]},
+                    # Adheres to RS485_MODBUS ESINV-33000ID Hybrid Inverter V3.2 / Appendix 8.
+                    # Each option clears every OTHER mode bit it is incompatible with; the
+                    # previous lists conflicted with their own bit and never cleared the
+                    # Timed Charge bit (1), so switching modes could leave invalid bit
+                    # combos that the inverter rejects/normalises (controls "bounce off"),
+                    # and plain "Self-Use"/"Feed-in" could never turn TOU back off.
+                    {"bit_position": 0, "name": "Self-Use", "conflicts_with": [1, 2, 6, 11]},
+                    {"bit_position": 0, "name": "Self-Use + TOU", "conflicts_with": [2, 6, 11], "requires": [1]},
+                    {"bit_position": 2, "name": "Off-Grid Operation", "conflicts_with": [0, 1, 6, 11]},
+                    {"bit_position": 6, "name": "Feed-in Priority", "conflicts_with": [0, 1, 2, 11]},
+                    {"bit_position": 6, "name": "Feed-in + TOU", "conflicts_with": [0, 2, 11], "requires": [1]},
+                    {"bit_position": 11, "name": "Peak Shaving", "conflicts_with": [0, 1, 2, 4, 6]},
                 ],
             },
         ]

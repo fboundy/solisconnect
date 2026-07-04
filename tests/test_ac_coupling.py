@@ -139,10 +139,11 @@ def test_timed_charge_enable_switch_names():
 
     names = [entity["name"] for entity in _switch_entities(config, 43707)]
 
-    assert names == [f"Timed Charge Enable {slot}" for slot in range(1, 13)]
+    # Bits 0-5 are the 6 charge slots, bits 6-11 the 6 discharge slots.
+    assert names == [f"Timed Charge Enable {slot}" for slot in range(1, 7)] + [f"Timed Discharge Enable {slot}" for slot in range(1, 7)]
 
 
-def test_timed_charge_number_names_are_normalized():
+def test_timed_slot_number_names_are_normalized():
     from custom_components.solisconnect.sensor_data.hybrid_sensors import hybrid_sensors
 
     entities = {int(entity["register"][0]): entity for group in hybrid_sensors for entity in group.get("entities", []) if entity.get("register")}
@@ -150,16 +151,16 @@ def test_timed_charge_number_names_are_normalized():
     assert entities[43708]["name"] == "Timed Charge SOC 1"
     assert entities[43709]["name"] == "Timed Charge Current 1"
     assert entities[43710]["name"] == "Timed Charge Voltage 1"
-    assert entities[43750]["name"] == "Timed Charge SOC 7"
-    assert entities[43751]["name"] == "Timed Charge Current 7"
-    assert entities[43752]["name"] == "Timed Charge Voltage 7"
-    assert entities[43785]["name"] == "Timed Charge SOC 12"
-    assert entities[43786]["name"] == "Timed Charge Current 12"
-    assert entities[43787]["name"] == "Timed Charge Voltage 12"
+    assert entities[43750]["name"] == "Timed Discharge SOC 1"
+    assert entities[43751]["name"] == "Timed Discharge Current 1"
+    assert entities[43752]["name"] == "Timed Discharge Voltage 1"
+    assert entities[43785]["name"] == "Timed Discharge SOC 6"
+    assert entities[43786]["name"] == "Timed Discharge Current 6"
+    assert entities[43787]["name"] == "Timed Discharge Voltage 6"
     assert entities[43024]["name"] == "Backup Mode SOC"
 
 
-def test_timed_charge_time_names_are_normalized():
+def test_timed_slot_time_names_are_normalized():
     from custom_components.solisconnect.sensor_data.time_sensors import get_time_sensors
 
     template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
@@ -168,10 +169,10 @@ def test_timed_charge_time_names_are_normalized():
 
     assert entities[43711]["name"] == "Timed Charge Start 1"
     assert entities[43713]["name"] == "Timed Charge End 1"
-    assert entities[43753]["name"] == "Timed Charge Start 7"
-    assert entities[43755]["name"] == "Timed Charge End 7"
-    assert entities[43788]["name"] == "Timed Charge Start 12"
-    assert entities[43790]["name"] == "Timed Charge End 12"
+    assert entities[43753]["name"] == "Timed Discharge Start 1"
+    assert entities[43755]["name"] == "Timed Discharge End 1"
+    assert entities[43788]["name"] == "Timed Discharge Start 6"
+    assert entities[43790]["name"] == "Timed Discharge End 6"
 
 
 def test_parallel_feature_disabled_by_default():

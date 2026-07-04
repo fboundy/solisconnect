@@ -246,3 +246,65 @@ async def test_companion_writes_skipped_when_cache_empty(mock_hass, mock_control
         await entity.async_select_option("Solis RC Force Battery Charge")
 
         mock_controller.async_write_holding_register.assert_awaited_once_with(primary_register, 1)
+
+
+def _work_mode_definition():
+    from custom_components.solisconnect.data.solis_config import SOLIS_INVERTERS, InverterOptions
+    from custom_components.solisconnect.sensor_data.select_sensors import get_select_sensors
+
+    template = next(inv for inv in SOLIS_INVERTERS if inv.model == "S6-EH1P")
+    config = template.clone_with_options(InverterOptions(), "S2_WL_ST")
+    return next(group for group in get_select_sensors(config) if group["name"] == "Work Mode")
+
+
+def _apply_option_bits(current: int, option: dict) -> int:
+    """Mirror SolisSelectEntity.set_register_bit's bit arithmetic for one option."""
+    value = current
+    for bit in option.get("conflicts_with", []):
+        value = set_bit(value, bit, False)
+    for bit in option.get("requires", []):
+        value = set_bit(value, bit, True)
+    return set_bit(value, option["bit_position"], True)
+
+
+def _resolve_option(register_value: int, options: list[dict]) -> str | None:
+    """Mirror SolisSelectEntity.current_option's resolution logic."""
+    sorted_options = sorted(options, key=lambda e: len(e.get("requires", [])) if "requires" in e else 0, reverse=True)
+    for e in sorted_options:
+        bit_position = e.get("bit_position")
+        requires = e.get("requires")
+        if bit_position is not None and (register_value >> bit_position) & 1:
+            if requires:
+                if all((register_value >> rbit) & 1 for rbit in requires):
+                    return e["name"]
+            else:
+                return e["name"]
+    return None
+
+
+@pytest.mark.parametrize("start_bits", [0b1, 0b11, 0b100, 0b1000010, 0b100000000001, 0b100011])
+def test_work_mode_options_round_trip_from_any_mode(start_bits):
+    """Every Work Mode option must land on a register state that resolves back to itself,
+    regardless of the mode the inverter was in before (the old definitions left stale mode
+    bits set, e.g. picking "Self-Use" never cleared TOU so it read back as "Self-Use + TOU",
+    and cross-mode transitions produced combos the firmware rejects)."""
+    definition = _work_mode_definition()
+    options = definition["entities"]
+
+    for option in options:
+        result = _apply_option_bits(start_bits, option)
+        assert _resolve_option(result, options) == option["name"], (
+            f"Selecting {option['name']!r} from {start_bits:#014b} produced {result:#014b}, which resolves to {_resolve_option(result, options)!r}"
+        )
+
+
+def test_work_mode_plain_options_clear_tou_bit():
+    """Picking a mode without "+ TOU" must actually turn the Timed Charge bit off."""
+    definition = _work_mode_definition()
+    by_name = {e["name"]: e for e in definition["entities"]}
+
+    tou_on = 0b11  # Self-Use + TOU active
+    assert (_apply_option_bits(tou_on, by_name["Self-Use"]) >> 1) & 1 == 0
+    assert (_apply_option_bits(tou_on, by_name["Feed-in Priority"]) >> 1) & 1 == 0
+    assert (_apply_option_bits(tou_on, by_name["Peak Shaving"]) >> 1) & 1 == 0
+    assert (_apply_option_bits(tou_on, by_name["Off-Grid Operation"]) >> 1) & 1 == 0
