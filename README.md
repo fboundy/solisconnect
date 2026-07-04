@@ -44,7 +44,7 @@ The SolisCloud API support was framed with reference to these projects:
 
 ## Documentation
 
-https://solisconnect.readthedocs.io/
+https://fboundy.github.io/solisconnect/
 
 ## Installation
 
@@ -131,7 +131,7 @@ Home Assistant only allows one `iot_class` value in the manifest. SolisConnect i
 
 - **Identification**: This field has been removed from the setup form. If you previously used it, the integration will still read it internally to migrate your old entities, but it is no longer user-configurable.
 
-`Connection Type`: S2 is the default Modbus dongle option. Only select Waveshare if you are using a Waveshare device and some sensors are higher than normal. See https://solisconnect.readthedocs.io/en/latest/sensors.html#waveshare
+`Connection Type`: S2 is the default Modbus dongle option. Only select Waveshare if you are using a Waveshare device and some sensors are higher than normal. See https://fboundy.github.io/solisconnect/sensors.html#waveshare
 
 # [Solar card setup](https://github.com/slipx06/sunsynk-power-flow-card):
 
