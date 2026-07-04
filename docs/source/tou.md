@@ -8,7 +8,7 @@ The config flow's "V2 support" toggle is auto-detected from the inverter's HMI f
 
 | | Time-Charging (V1) | Grid Time of Use V2 |
 | --- | --- | --- |
-| Enable switch | `switch.solis_time_of_use` — bit 1 of storage-mode register `43110` | `switch.solis_time_of_use_v2_switch` — bitfield register `43707`, one bit per slot |
+| Enable switch | **Read-only** — bit 1 of storage-mode register `43110`, exposed as `binary_sensor.solis_timed_charge_status` (see note below; not user-settable on this firmware family) | Per-slot `switch.solis_timed_charge_enable_N` / `switch.solis_timed_discharge_enable_N` — bitfield register `43707`, one bit per slot |
 | Slot count | 3 | 6 |
 | Per-slot fields | Start/end hour+minute for charge and discharge | Start/end hour+minute, target SOC, cut-off voltage, battery current, per slot, for charge and discharge |
 | Charge/discharge current | One global pair (`43141`/`43142`), not per-slot | Per-slot (register offset `+1` in each slot block) |
@@ -22,7 +22,7 @@ The config flow's "V2 support" toggle is auto-detected from the inverter's HMI f
 
 The older scheduling mechanism. One shared charge current and one shared discharge current apply across all slots; only the start/end times vary per slot.
 
-- Enable: bit 1 (`Time of Use`) of the storage-mode bitfield at register `43110` (`switch_sensors.py`). This bit requires either `Self-Use Mode` (bit 0) or `Feed-In Priority Mode` (bit 6) to be conflict-free with the other storage-mode bits.
+- Enable: bit 1 (`Time of Use`) of the storage-mode bitfield at register `43110`. **This bit is read-only in SolisConnect** — exposed as `binary_sensor.solis_timed_charge_status` (`sensor_data/binary_sensors.py`), not a controllable switch. On this inverter firmware family the bit does not persist as a user-set value: a Modbus write to set it succeeds and is acknowledged, but the device silently clears it again within one poll cycle while leaving every other storage-mode bit untouched. This was confirmed live and cross-referenced against [wills106/homeassistant-solax-modbus](https://github.com/wills106/homeassistant-solax-modbus) (`plugin_solis_fb00.py`), which never exposes this bit as a controllable option either and drives all real TOU enablement through register `43707`'s per-slot switches. The `Work Mode` select (register `43110`) likewise now writes only the 8 field-tested whole-register values from that project (`1, 17, 33, 37, 41, 49, 64, 96`), none of which set bit 1.
 - Global settings: `Time-Charging Charge Current` (`43141`) and `Time-Charging Discharge Current` (`43142`), both in amps, editable as `number` entities.
 - Per slot, each slot is a block of paired hour/minute registers exposed as HA `time` entities:
   - Charge Start / Charge End

@@ -36,11 +36,10 @@ def get_switch_sensors(inverter_config):
                 "register": 43110,
                 "entities": [
                     # Adheres to RS485_MODBUS ESINV-33000ID Hybrid Inverter V3.2 / Appendix 8
+                    # Bit 1 (Timed Charge / TOU) is intentionally not exposed as a control
+                    # here - it does not persist on this firmware family. See
+                    # sensor_data/binary_sensors.py for the read-only status equivalent.
                     {"bit_position": 0, "name": "Mode - Self Use", "conflicts_with": [2, 6, 11], "control": True},
-                    # Timed Charge (TOU) only operates alongside Self-Use (0) or Feed-In (6);
-                    # clear Off-Grid/Peak-Shaving first or the fallback Self-Use bit forms a
-                    # combo the firmware rejects and the switch bounces off on the next poll.
-                    {"bit_position": 1, "name": "Mode - Timed Charge", "requires_any": [0, 6], "conflicts_with": [2, 11], "control": True},
                     {"bit_position": 2, "name": "Mode - Off-Grid", "conflicts_with": [0, 1, 6, 11], "control": True},
                     {"bit_position": 3, "name": "Mode - Battery Wake Up", "control": True},
                     {"bit_position": 4, "name": "Mode - Backup", "conflicts_with": [11], "control": True},

@@ -41,6 +41,7 @@ class TestSensorDrift(unittest.TestCase):
 
         # New Entity Types
         from custom_components.solisconnect.data.solis_config import InverterConfig, InverterType
+        from custom_components.solisconnect.sensor_data.binary_sensors import get_binary_sensors
         from custom_components.solisconnect.sensor_data.select_sensors import get_select_sensors
         from custom_components.solisconnect.sensor_data.switch_sensors import get_switch_sensors
         from custom_components.solisconnect.sensor_data.time_sensors import get_time_sensors
@@ -49,6 +50,15 @@ class TestSensorDrift(unittest.TestCase):
 
         # Switch
         for group in get_switch_sensors(config):
+            for entity in group["entities"]:
+                register = group.get("register", group.get("read_register")) + entity.get("offset", 0)
+                bit_position = entity.get("bit_position")
+                on_value = entity.get("on_value")
+                uid = unique_id_generator_binary(controller, register, bit_position, on_value)
+                current_sensors.add(uid)
+
+        # Binary sensor (read-only bit status; same unique_id scheme as switch)
+        for group in get_binary_sensors(config):
             for entity in group["entities"]:
                 register = group.get("register", group.get("read_register")) + entity.get("offset", 0)
                 bit_position = entity.get("bit_position")

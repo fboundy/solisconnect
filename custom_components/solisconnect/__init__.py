@@ -53,7 +53,7 @@ from .sensors.solis_base_sensor import SolisBaseSensor, SolisSensorGroup
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.NUMBER, Platform.SWITCH, Platform.TIME, Platform.SELECT]
+PLATFORMS = [Platform.NUMBER, Platform.SWITCH, Platform.BINARY_SENSOR, Platform.TIME, Platform.SELECT]
 
 SCHEME_HOLDING_REGISTER = vol.Schema(
     {
