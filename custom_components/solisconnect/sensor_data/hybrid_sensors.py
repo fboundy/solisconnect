@@ -3458,18 +3458,19 @@ def _apply_control_metadata() -> None:
         "Backup SOC": "Backup Mode SOC",
     }
 
-    timed_charge_registers: dict[int, tuple[str, int]] = {}
+    # TOU V2 slot fields: 6 charge slots (43708+) and 6 discharge slots (43750+),
+    # named "Timed Charge X 1-6" and "Timed Discharge X 1-6" respectively.
+    timed_slot_registers: dict[int, tuple[str, str, int]] = {}
     for slot in range(1, 7):
         charge_base = 43708 + ((slot - 1) * 7)
-        timed_charge_registers[charge_base] = ("SOC", slot)
-        timed_charge_registers[charge_base + 1] = ("Current", slot)
-        timed_charge_registers[charge_base + 2] = ("Voltage", slot)
+        timed_slot_registers[charge_base] = ("Charge", "SOC", slot)
+        timed_slot_registers[charge_base + 1] = ("Charge", "Current", slot)
+        timed_slot_registers[charge_base + 2] = ("Charge", "Voltage", slot)
 
-        discharge_slot = slot + 6
         discharge_base = 43750 + ((slot - 1) * 7)
-        timed_charge_registers[discharge_base] = ("SOC", discharge_slot)
-        timed_charge_registers[discharge_base + 1] = ("Current", discharge_slot)
-        timed_charge_registers[discharge_base + 2] = ("Voltage", discharge_slot)
+        timed_slot_registers[discharge_base] = ("Discharge", "SOC", slot)
+        timed_slot_registers[discharge_base + 1] = ("Discharge", "Current", slot)
+        timed_slot_registers[discharge_base + 2] = ("Discharge", "Voltage", slot)
 
     for group in hybrid_sensors:
         for entity in group.get("entities", []):
@@ -3487,10 +3488,10 @@ def _apply_control_metadata() -> None:
                 continue
 
             register = int(registers[0])
-            timed_control = timed_charge_registers.get(register)
+            timed_control = timed_slot_registers.get(register)
             if timed_control:
-                field, slot = timed_control
-                entity["name"] = f"Timed Charge {field} {slot}"
+                direction, field, slot = timed_control
+                entity["name"] = f"Timed {direction} {field} {slot}"
                 entity["control"] = True
 
 

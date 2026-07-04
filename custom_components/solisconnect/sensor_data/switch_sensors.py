@@ -37,7 +37,10 @@ def get_switch_sensors(inverter_config):
                 "entities": [
                     # Adheres to RS485_MODBUS ESINV-33000ID Hybrid Inverter V3.2 / Appendix 8
                     {"bit_position": 0, "name": "Mode - Self Use", "conflicts_with": [2, 6, 11], "control": True},
-                    {"bit_position": 1, "name": "Mode - Timed Charge", "requires_any": [0, 6], "control": True},
+                    # Timed Charge (TOU) only operates alongside Self-Use (0) or Feed-In (6);
+                    # clear Off-Grid/Peak-Shaving first or the fallback Self-Use bit forms a
+                    # combo the firmware rejects and the switch bounces off on the next poll.
+                    {"bit_position": 1, "name": "Mode - Timed Charge", "requires_any": [0, 6], "conflicts_with": [2, 11], "control": True},
                     {"bit_position": 2, "name": "Mode - Off-Grid", "conflicts_with": [0, 1, 6, 11], "control": True},
                     {"bit_position": 3, "name": "Mode - Battery Wake Up", "control": True},
                     {"bit_position": 4, "name": "Mode - Backup", "conflicts_with": [11], "control": True},
@@ -152,12 +155,12 @@ def get_switch_sensors(inverter_config):
                     {"name": "Timed Charge Enable 4", "bit_position": 3, "control": True},
                     {"name": "Timed Charge Enable 5", "bit_position": 4, "control": True},
                     {"name": "Timed Charge Enable 6", "bit_position": 5, "control": True},
-                    {"name": "Timed Charge Enable 7", "bit_position": 6, "control": True},
-                    {"name": "Timed Charge Enable 8", "bit_position": 7, "control": True},
-                    {"name": "Timed Charge Enable 9", "bit_position": 8, "control": True},
-                    {"name": "Timed Charge Enable 10", "bit_position": 9, "control": True},
-                    {"name": "Timed Charge Enable 11", "bit_position": 10, "control": True},
-                    {"name": "Timed Charge Enable 12", "bit_position": 11, "control": True},
+                    {"name": "Timed Discharge Enable 1", "bit_position": 6, "control": True},
+                    {"name": "Timed Discharge Enable 2", "bit_position": 7, "control": True},
+                    {"name": "Timed Discharge Enable 3", "bit_position": 8, "control": True},
+                    {"name": "Timed Discharge Enable 4", "bit_position": 9, "control": True},
+                    {"name": "Timed Discharge Enable 5", "bit_position": 10, "control": True},
+                    {"name": "Timed Discharge Enable 6", "bit_position": 11, "control": True},
                 ],
             },
         ]

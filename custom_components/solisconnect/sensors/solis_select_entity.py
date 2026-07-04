@@ -68,6 +68,8 @@ class SolisSelectEntity(RestoreEntity, SelectEntity):
                     break
                 else:
                     await self.set_register_bit(on_value, bit_position, conflicts_with, requires)
+                    self.async_write_ha_state()
+                    break
 
     @property
     def device_info(self):
