@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime
 
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components.persistent_notification import async_create as pn_create
 from homeassistant.config_entries import ConfigEntry
@@ -54,6 +55,11 @@ from .sensors.solis_base_sensor import SolisBaseSensor, SolisSensorGroup
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.NUMBER, Platform.SWITCH, Platform.BINARY_SENSOR, Platform.TIME, Platform.SELECT]
+
+# This integration is configured only via the config flow (no YAML config). async_setup
+# just registers services, so declare an empty config schema — this silences hassfest's
+# CONFIG_SCHEMA warning and asserts the integration takes no YAML configuration.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 SCHEME_HOLDING_REGISTER = vol.Schema(
     {
