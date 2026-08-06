@@ -19,9 +19,20 @@ SETTING_CATEGORIES = {
 }
 
 
-def entity_category_for_sensor_category(category: Category | None, control: bool = False) -> EntityCategory | None:
+def entity_category_for_sensor_category(
+    category: Category | None,
+    control: bool = False,
+    *,
+    config_allowed: bool = True,
+) -> EntityCategory | None:
+    """Map a Solis sensor category onto a Home Assistant entity category.
+
+    The sensor and binary_sensor domains reject EntityCategory.CONFIG outright, so
+    read-only entities in those domains must pass config_allowed=False and land in
+    DIAGNOSTIC instead. Writable domains (number, select, switch, time) keep CONFIG.
+    """
     if control:
         return None
     if category in SETTING_CATEGORIES:
-        return EntityCategory.CONFIG
+        return EntityCategory.CONFIG if config_allowed else EntityCategory.DIAGNOSTIC
     return None

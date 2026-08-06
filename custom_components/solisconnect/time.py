@@ -1,12 +1,14 @@
 import logging
 from datetime import UTC, datetime, time
 
-from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from custom_components.solisconnect import ModbusController
 from custom_components.solisconnect.const import DOMAIN, REGISTER, TIME_ENTITIES, VALUE
@@ -38,7 +40,7 @@ async def async_setup_entry(hass, config_entry: ConfigEntry, async_add_devices):
     async_add_devices(time_entities, True)
 
 
-class SolisTimeEntity(RestoreSensor, TimeEntity):
+class SolisTimeEntity(RestoreEntity, TimeEntity):
     """Representation of a Time entity."""
 
     def __init__(self, hass, modbus_controller, entity_definition):
@@ -64,9 +66,12 @@ class SolisTimeEntity(RestoreSensor, TimeEntity):
     async def async_added_to_hass(self) -> None:
         """Called when entity is added to HA."""
         await super().async_added_to_hass()
-        state = await self.async_get_last_sensor_data()
-        if state:
-            self._attr_native_value = state.native_value
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            try:
+                self._attr_native_value = time.fromisoformat(last_state.state)
+            except ValueError:
+                _LOGGER.debug(f"Could not restore time from state {last_state.state!r}, register = {self._register}")
 
         self.async_on_remove(
             async_dispatcher_connect(
