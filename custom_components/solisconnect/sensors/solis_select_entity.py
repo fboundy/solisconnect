@@ -1,11 +1,21 @@
 import logging
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.core import callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from custom_components.solisconnect import ModbusController
-from custom_components.solisconnect.helpers import cache_get, cache_save, unique_id_generator
+from custom_components.solisconnect.const import REGISTER
+from custom_components.solisconnect.helpers import (
+    cache_get,
+    cache_save,
+    is_correct_controller,
+    register_update_signal,
+    unique_id_generator,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,13 +32,42 @@ class SolisSelectEntity(RestoreEntity, SelectEntity):
         self._attr_options = [e["name"] for e in entity_definition["entities"]]
         self._attr_options_raw = entity_definition["entities"]
         self._companion_writes = entity_definition.get("companion_writes") or []
-        self._current_option = None
+        self._restored_option = None
+        # State is pushed from register updates; HA entity polling is not needed.
+        self._attr_should_poll = False
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last option and subscribe to updates of the backing register."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE) and last_state.state in self._attr_options:
+            self._restored_option = last_state.state
+
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self._hass,
+                register_update_signal(self._modbus_controller, self._register),
+                self.handle_modbus_update,
+            )
+        )
+
+    @callback
+    def handle_modbus_update(self, data):
+        """Callback when register data is available (per-register dispatcher)."""
+        if not is_correct_controller(self._modbus_controller, data):
+            return  # meant for a different sensor/inverter combo
+
+        if int(data.get(REGISTER)) == self._register:
+            # current_option is derived from the cache, which the poller has already updated.
+            self.async_write_ha_state()
 
     @property
     def current_option(self) -> str | None:
         reg_cache = cache_get(self._hass, self._modbus_controller, self._register)
         if reg_cache is None:
-            return
+            # Until the register's group has been polled, show the last known option
+            # instead of "unknown" (issue #37).
+            return self._restored_option
 
         # Sort by number of requires descending to prioritize more specific matches
         sorted_options = sorted(self._attr_options_raw, key=lambda e: len(e.get("requires", [])) if "requires" in e else 0, reverse=True)
