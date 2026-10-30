@@ -19,34 +19,33 @@ class TestSensorDrift(unittest.TestCase):
         class MockController:
             pass
 
-        controller = MockController()
-        controller.device_serial_number = serial
-        controller.identification = identification
-        controller.host = host
-
-        current_sensors = set()
-
-        # Standard Sensors
-        for group in hybrid_sensors:
-            for entity in group.get("entities", []):
-                if entity.get("type") == "reserve":
-                    continue
-                uid = unique_id_generator(controller, entity.get("unique", "reserve"))
-                current_sensors.add(uid)
-
-        # Derived Sensors
-        for entity in hybrid_sensors_derived:
-            uid = f"{DOMAIN}_{entity['unique']}"
-            current_sensors.add(uid)
-
-        # New Entity Types
         from custom_components.solisconnect.data.solis_config import InverterConfig, InverterType
         from custom_components.solisconnect.sensor_data.binary_sensors import get_binary_sensors
         from custom_components.solisconnect.sensor_data.select_sensors import get_select_sensors
         from custom_components.solisconnect.sensor_data.switch_sensors import get_switch_sensors
         from custom_components.solisconnect.sensor_data.time_sensors import get_time_sensors
+        from custom_components.solisconnect.sensors.solis_base_sensor import SolisSensorGroup
 
         config = InverterConfig(model="TEST", type=InverterType.HYBRID, wattage=[5000], phases=[1])
+
+        controller = MockController()
+        controller.device_serial_number = serial
+        controller.identification = identification
+        controller.host = host
+        controller.inverter_config = config
+
+        current_sensors = set()
+
+        # Standard Sensors: built by the real group code, so a drift in how it derives IDs is caught
+        for group in hybrid_sensors:
+            for sensor in SolisSensorGroup(hass=None, definition=group, controller=controller).sensors:
+                if sensor.name != "reserve":
+                    current_sensors.add(sensor.unique_id)
+
+        # Derived Sensors
+        for entity in hybrid_sensors_derived:
+            uid = f"{DOMAIN}_{entity['unique']}"
+            current_sensors.add(uid)
 
         # Switch
         for group in get_switch_sensors(config):
