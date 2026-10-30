@@ -267,7 +267,7 @@ class TestModbusControllerSerial(IsolatedAsyncioTestCase):
             parity=DEFAULT_PARITY,
             stopbits=DEFAULT_STOPBITS,
             inverter_config=self.inverter_config,
-            device_id=1,
+            device_id=2,
             fast_poll=5,
             normal_poll=15,
             slow_poll=30,
@@ -342,9 +342,7 @@ class TestModbusControllerSerial(IsolatedAsyncioTestCase):
         result = await self.controller.async_read_input_register(100, 1)
 
         self.assertEqual([42], result)
-        # Serial: slave is set on client, not passed as parameter
-        self.mock_client.read_input_registers.assert_called_once_with(address=100, count=1)
-        self.assertEqual(self.mock_client.slave, 1)
+        self.mock_client.read_input_registers.assert_called_once_with(address=100, count=1, device_id=2)
 
     async def test_async_read_input_register_failure(self):
         """Test failed read of input register."""
@@ -366,9 +364,7 @@ class TestModbusControllerSerial(IsolatedAsyncioTestCase):
         result = await self.controller.async_read_holding_register(100, 1)
 
         self.assertEqual([42], result)
-        # Serial: slave is set on client, not passed as parameter
-        self.mock_client.read_holding_registers.assert_called_once_with(address=100, count=1)
-        self.assertEqual(self.mock_client.slave, 1)
+        self.mock_client.read_holding_registers.assert_called_once_with(address=100, count=1, device_id=2)
 
     async def test_async_read_holding_register_failure(self):
         """Test failed read of holding register."""
@@ -393,9 +389,7 @@ class TestModbusControllerSerial(IsolatedAsyncioTestCase):
         ):
             await self.controller.async_write_holding_register(100, 42)
 
-        # Serial: slave is set on client, not passed as parameter
-        self.mock_client.write_register.assert_called_once_with(address=100, value=42)
-        self.assertEqual(self.mock_client.slave, 1)
+        self.mock_client.write_register.assert_called_once_with(address=100, value=42, device_id=2)
 
     async def test_async_write_holding_register_failure_raises(self):
         """A failed write raises HomeAssistantError so the dual-protocol hub fallback can fire."""
@@ -418,8 +412,7 @@ class TestModbusControllerSerial(IsolatedAsyncioTestCase):
         ):
             await self.controller.async_write_holding_registers(100, [42, 43])
 
-        self.mock_client.write_registers.assert_called_once_with(address=100, values=[42, 43])
-        self.assertEqual(self.mock_client.slave, 1)
+        self.mock_client.write_registers.assert_called_once_with(address=100, values=[42, 43], device_id=2)
 
     def test_poll_speed(self):
         """Test the poll_speed property."""

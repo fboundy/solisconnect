@@ -155,12 +155,7 @@ class ModbusController(SolisControllerBase):
                 int_value = int(value)
                 int_register = register if is_number(register) else int(register)
 
-                # Different pymodbus APIs for TCP vs Serial
-                if self.connection_type == CONN_TYPE_TCP:
-                    result = await self.client.write_register(address=int_register, value=int_value, device_id=self.device_id)
-                else:
-                    self.client.slave = self.device_id
-                    result = await self.client.write_register(address=int_register, value=int_value)
+                result = await self.client.write_register(address=int_register, value=int_value, device_id=self.device_id)
                 _LOGGER.debug(
                     f"({self.host}.{self.device_id}) Write Holding Register register = {int_register}, value = {value}, int_value = {int_value}: {result}"
                 )
@@ -196,12 +191,7 @@ class ModbusController(SolisControllerBase):
                 await self.inter_frame_wait(is_write=True)  # Delay before write
 
                 try:
-                    # Different pymodbus APIs for TCP vs Serial
-                    if self.connection_type == CONN_TYPE_TCP:
-                        result = await self.client.write_registers(address=start_register, values=values, device_id=self.device_id)
-                    else:
-                        self.client.slave = self.device_id
-                        result = await self.client.write_registers(address=start_register, values=values)
+                    result = await self.client.write_registers(address=start_register, values=values, device_id=self.device_id)
                     _LOGGER.debug(
                         f"({self.host}.{self.device_id}) Write Holding Register block for {len(values)} registers starting at register = {start_register}"
                     )
@@ -273,11 +263,7 @@ class ModbusController(SolisControllerBase):
             await self.inter_frame_wait()
 
             try:
-                if self.connection_type == CONN_TYPE_TCP:
-                    result = await self.client.read_input_registers(address=register, count=count, device_id=self.device_id)
-                else:
-                    self.client.slave = self.device_id
-                    result = await self.client.read_input_registers(address=register, count=count)
+                result = await self.client.read_input_registers(address=register, count=count, device_id=self.device_id)
 
                 _LOGGER.debug(f"({self.host}.{self.device_id}) Read Input Registers: register = {register}, count = {count}")
 
@@ -342,11 +328,7 @@ class ModbusController(SolisControllerBase):
             await self.inter_frame_wait()
 
             try:
-                if self.connection_type == CONN_TYPE_TCP:
-                    result = await self.client.read_holding_registers(address=register, count=count, device_id=self.device_id)
-                else:
-                    self.client.slave = self.device_id
-                    result = await self.client.read_holding_registers(address=register, count=count)
+                result = await self.client.read_holding_registers(address=register, count=count, device_id=self.device_id)
 
                 _LOGGER.debug(f"({self.host}.{self.device_id}) Read Holding Registers: register = {register}, count = {count}")
 
