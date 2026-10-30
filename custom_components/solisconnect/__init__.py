@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from datetime import datetime
 
 import homeassistant.helpers.config_validation as cv
@@ -11,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntry
 
 from .const import (
@@ -345,6 +347,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             protocol_controller._sensor_groups = sensor_groups
             protocol_controller._derived_sensors = derived_sensors
 
+    # Must run before the platforms add entities, or they register under the new IDs as duplicates.
+    migrate_dict_unique_ids(hass, entry, hub)
+
     set_controller(hass, hub, entry)
 
     _LOGGER.debug(f"Config entry setup for {protocol_mode} ({connection_id}), slave {slave}")
@@ -358,6 +363,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN]["data_retrieval"][entry.entry_id] = hub
 
     return True
+
+
+# Up to v0.1.20 sensor/number unique IDs embedded the repr of the whole definition dict, e.g.
+# "solisconnect_SN1_{'name': 'Model No', 'unique': 'solisconnect_inverter_model_no', ...}".
+_LEGACY_DICT_UNIQUE_ID = re.compile(r"""'unique': (['"])(.+?)\1""")
+
+
+def migrate_dict_unique_ids(hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+    """Rename dict-repr sensor/number unique IDs to the definition's stable 'unique' key.
+
+    Every edit to a definition dict minted a new ID, so one key can own several registry
+    entries. Keep the oldest (it holds the original entity_id, and with it the history) and
+    remove the rest. Idempotent: once renamed, nothing matches the legacy pattern.
+    """
+    ent_reg = er.async_get(hass)
+    candidates: dict[tuple[str, str], list[er.RegistryEntry]] = {}
+    for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if reg_entry.domain not in (Platform.SENSOR, Platform.NUMBER):
+            continue
+        match = _LEGACY_DICT_UNIQUE_ID.search(reg_entry.unique_id)
+        if match:
+            new_uid = unique_id_generator(controller, match.group(2))
+            candidates.setdefault((reg_entry.domain, new_uid), []).append(reg_entry)
+
+    for (domain, new_uid), legacy in candidates.items():
+        current_entity_id = ent_reg.async_get_entity_id(domain, DOMAIN, new_uid)
+        entries = legacy + ([ent_reg.async_get(current_entity_id)] if current_entity_id else [])
+        keep, *drop = sorted(entries, key=lambda e: e.created_at)
+        for reg_entry in drop:
+            _LOGGER.info("Removing duplicate %s (superseded by %s)", reg_entry.entity_id, keep.entity_id)
+            ent_reg.async_remove(reg_entry.entity_id)
+        if keep.unique_id != new_uid:
+            _LOGGER.info("Migrating unique_id of %s to %s", keep.entity_id, new_uid)
+            ent_reg.async_update_entity(keep.entity_id, new_unique_id=new_uid)
 
 
 async def async_migrate_to_serial_ids(hass: HomeAssistant, entry: ConfigEntry) -> bool:

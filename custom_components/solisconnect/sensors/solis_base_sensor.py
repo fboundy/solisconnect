@@ -237,7 +237,7 @@ class SolisSensorGroup:
                     data_type=entity.get("data_type", None),
                     value_format=entity.get("value_format", None),
                     control=entity.get("control", False),
-                    unique_id=unique_id_generator(controller, entity),
+                    unique_id=unique_id_generator(controller, entity.get("unique", "reserve")),
                     poll_speed=definition.get("poll_speed", PollSpeed.NORMAL),
                 ),
                 definition.get("entities", []),
