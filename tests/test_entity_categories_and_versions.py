@@ -1,8 +1,10 @@
 from unittest.mock import MagicMock
 
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import EntityCategory
 
 from custom_components.solisconnect.data.enums import Category, InverterFeature
+from custom_components.solisconnect.sensors.entity_category import SETTING_CATEGORIES
 from custom_components.solisconnect.sensors.solis_base_sensor import SolisBaseSensor
 from custom_components.solisconnect.sensors.solis_binary_sensor import SolisBinaryEntity
 from custom_components.solisconnect.sensors.solis_number_sensor import SolisNumberEntity
@@ -58,7 +60,9 @@ def test_setting_category_sensor_is_configuration_entity(hass):
     sensor.category = Category.REMOTE_CONTROL_SETTING
     sensor.poll_speed = None
 
-    assert SolisSensor(hass, sensor)._attr_entity_category == EntityCategory.CONFIG
+    # The sensor domain rejects EntityCategory.CONFIG at add time, so a read-only
+    # setting read-back must be DIAGNOSTIC. The writable number entity keeps CONFIG.
+    assert SolisSensor(hass, sensor)._attr_entity_category == EntityCategory.DIAGNOSTIC
     assert SolisNumberEntity(hass, sensor)._attr_entity_category == EntityCategory.CONFIG
 
 
@@ -127,6 +131,41 @@ def test_non_control_platform_entities_are_configuration_entities(hass):
     assert switch._attr_entity_category == EntityCategory.CONFIG
     assert select._attr_entity_category == EntityCategory.CONFIG
     assert time._attr_entity_category == EntityCategory.CONFIG
+
+
+def test_time_entity_is_not_a_sensor_entity():
+    """The time domain permits CONFIG but the sensor domain does not.
+
+    Inheriting a sensor base drags SensorEntity.async_internal_added_to_hass into the
+    MRO, which rejects every CONFIG time entity at add time.
+    """
+    assert not issubclass(SolisTimeEntity, SensorEntity)
+
+
+def test_sensor_domain_entities_never_use_config_category(hass):
+    """sensor/binary_sensor raise HomeAssistantError if entity_category is CONFIG."""
+    controller = _controller()
+    controller.device_id = 1
+    controller.host = "1.2.3.4"
+
+    for category in SETTING_CATEGORIES:
+        sensor = MagicMock(spec=SolisBaseSensor)
+        sensor.controller = controller
+        sensor.name = "Setting Read-back"
+        sensor.registrars = [43282]
+        sensor.write_register = 43282
+        sensor.device_class = None
+        sensor.unit_of_measurement = None
+        sensor.state_class = None
+        sensor.multiplier = 1
+        sensor.enabled = True
+        sensor.hidden = False
+        sensor.unique_id = "setting_read_back"
+        sensor.category = category
+        sensor.control = False
+        sensor.poll_speed = None
+
+        assert SolisSensor(hass, sensor)._attr_entity_category != EntityCategory.CONFIG
 
 
 def test_active_protocol_select_is_control_entity(hass):

@@ -304,6 +304,65 @@ async def test_work_mode_option_writes_whole_register_value(mock_hass, mock_cont
         mock_controller.async_write_holding_register.assert_awaited_once_with(43110, value)
 
 
+@pytest.mark.asyncio
+async def test_select_subscribes_to_register_and_restores_last_option(mock_hass, mock_controller):
+    """Issue #37: the select must subscribe to its register so polled values reach HA state,
+    and show the restored option until the first poll instead of 'unknown'."""
+    definition = _work_mode_definition()
+    entity = SolisSelectEntity(mock_hass, mock_controller, definition)
+    entity.async_on_remove = MagicMock()
+    last_state = MagicMock(state="Backup/Reserve")
+
+    with (
+        patch.object(SolisSelectEntity, "async_get_last_state", AsyncMock(return_value=last_state)),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.async_dispatcher_connect") as connect,
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=None),
+    ):
+        await entity.async_added_to_hass()
+
+        connect.assert_called_once()
+        assert connect.call_args.args[1].endswith("_43110")
+        assert connect.call_args.args[2] == entity.handle_modbus_update
+        assert entity.current_option == "Backup/Reserve"
+
+
+@pytest.mark.asyncio
+async def test_select_ignores_invalid_restored_state(mock_hass, mock_controller):
+    definition = _work_mode_definition()
+    entity = SolisSelectEntity(mock_hass, mock_controller, definition)
+    entity.async_on_remove = MagicMock()
+
+    with (
+        patch.object(SolisSelectEntity, "async_get_last_state", AsyncMock(return_value=MagicMock(state="unknown"))),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.async_dispatcher_connect"),
+        patch("custom_components.solisconnect.sensors.solis_select_entity.cache_get", return_value=None),
+    ):
+        await entity.async_added_to_hass()
+        assert entity.current_option is None
+
+
+def test_select_writes_state_on_register_update(mock_hass, mock_controller):
+    """A polled value for the select's register writes HA state; other registers are ignored."""
+    entity = SolisSelectEntity(mock_hass, mock_controller, _work_mode_definition())
+    entity.async_write_ha_state = MagicMock()
+
+    with patch("custom_components.solisconnect.sensors.solis_select_entity.is_correct_controller", return_value=True):
+        entity.handle_modbus_update({"register": 43111, "value": 0})
+        entity.async_write_ha_state.assert_not_called()
+
+        entity.handle_modbus_update({"register": 43110, "value": 33})
+        entity.async_write_ha_state.assert_called_once()
+
+
+def test_select_ignores_updates_for_other_controller(mock_hass, mock_controller):
+    entity = SolisSelectEntity(mock_hass, mock_controller, _work_mode_definition())
+    entity.async_write_ha_state = MagicMock()
+
+    with patch("custom_components.solisconnect.sensors.solis_select_entity.is_correct_controller", return_value=False):
+        entity.handle_modbus_update({"register": 43110, "value": 33})
+        entity.async_write_ha_state.assert_not_called()
+
+
 @pytest.mark.parametrize(("name", "value"), list(_WORK_MODE_VALUES.items()))
 def test_work_mode_current_option_resolves_each_value(mock_hass, mock_controller, name, value):
     """current_option must map each whole-register value back to its option name."""

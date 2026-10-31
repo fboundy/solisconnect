@@ -38,6 +38,7 @@ class SolisSensor(RestoreSensor, SensorEntity):
         self._attr_entity_category = entity_category_for_sensor_category(
             getattr(sensor, "category", None),
             getattr(sensor, "control", False),
+            config_allowed=False,
         )
 
         self.is_added_to_hass = False
