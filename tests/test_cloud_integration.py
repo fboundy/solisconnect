@@ -481,3 +481,22 @@ async def test_dual_flow_cloud_model_overrides_wrong_modbus_model(hass: HomeAssi
         # HMI read (register 33002) returned [1] via the blanket async_read_input_register
         # patch, well below the V2 threshold -> overrides the user's has_v2=True to False.
         assert result["data"]["has_v2"] is False
+
+
+async def test_cloud_retrieval_stopped_during_first_poll_registers_no_timer():
+    """Audit #3: stopping the cloud poller while its first poll is in flight must not leave
+    a periodic timer behind once that poll finishes."""
+    from custom_components.solisconnect.cloud.cloud_retrieval import CloudDataRetrieval
+
+    hass = MagicMock()
+    hass.is_running = False  # don't kick off poll_controller in __init__
+    retrieval = CloudDataRetrieval(hass, MagicMock(), disable_unmapped=False)
+    retrieval._ensure_inverter_id = AsyncMock()
+    retrieval._update_cycle = AsyncMock(side_effect=retrieval.async_stop)
+
+    with patch("custom_components.solisconnect.cloud.cloud_retrieval.async_track_time_interval") as track:
+        await retrieval.poll_controller()
+
+    retrieval._update_cycle.assert_awaited_once()
+    track.assert_not_called()
+    assert retrieval._unsub_timer is None
