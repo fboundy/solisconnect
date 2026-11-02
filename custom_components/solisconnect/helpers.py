@@ -90,7 +90,7 @@ def clock_drift_test(hass, controller, year, month, day, hours, minutes, seconds
     drift_counter = hass.data[DOMAIN].get(DRIFT_COUNTER, 0)
     clock_adjusted = False
 
-    if total_drift > 60:
+    if total_drift > 10:
         if drift_counter > 5:
             if controller.connected():
                 hass.create_task(
