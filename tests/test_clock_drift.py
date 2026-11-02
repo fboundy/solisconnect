@@ -96,3 +96,14 @@ def test_no_write_when_disconnected():
 
     assert adjusted is False
     hass.create_task.assert_not_called()
+
+
+def test_drift_tolerance_is_ten_seconds():
+    hass = make_hass(counter=3)
+    controller = make_controller()
+
+    call(hass, controller, 26, 6, 13, 12, 30, 25)  # 10 s off: within tolerance
+    assert hass.data[DOMAIN][DRIFT_COUNTER] == 0
+
+    call(hass, controller, 26, 6, 13, 12, 30, 26)  # 11 s off: counts as drift
+    assert hass.data[DOMAIN][DRIFT_COUNTER] == 1
