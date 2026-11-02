@@ -307,3 +307,28 @@ async def test_link_is_stale_thresholds():
     assert retrieval._link_is_stale() is False
     controller.last_modbus_success = datetime.now(UTC) - timedelta(seconds=130)
     assert retrieval._link_is_stale() is True
+
+
+async def test_stop_during_connect_retry_registers_no_timers():
+    """Audit #3: a retrieval stopped while its startup connect loop is retrying (e.g. failover
+    switched to cloud because the logger was offline at boot) must exit the loop and never
+    register poll timers, otherwise it outlives async_stop and polls alongside the new protocol."""
+    retrieval, controller = _make_stale_watchdog_fixture(None)
+    controller.connected = MagicMock(return_value=False)
+
+    async def connect_then_stop():
+        await retrieval.async_stop()
+        return False
+
+    controller.connect = AsyncMock(side_effect=connect_then_stop)
+
+    with (
+        patch("custom_components.solisconnect.data_retrieval.notify_register_update"),
+        patch("custom_components.solisconnect.data_retrieval.asyncio.sleep", new=AsyncMock()),
+        patch("custom_components.solisconnect.data_retrieval.async_track_time_interval") as track,
+    ):
+        await retrieval.poll_controller()
+
+    controller.connect.assert_awaited_once()
+    track.assert_not_called()
+    assert retrieval._unsub_listeners == []

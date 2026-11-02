@@ -44,6 +44,7 @@ class CloudDataRetrieval:
         self.poll_updating = False
         self._unsub_timer = None
         self._unsub_start = None
+        self._stopped = False  # set by async_stop; the hub builds a new retrieval rather than restarting
 
         if hass.is_running:
             hass.async_create_task(self.poll_controller())
@@ -57,7 +58,11 @@ class CloudDataRetrieval:
             self._disable_unmapped_sensors()
             await self._disable_v2_if_unsupported()
         await self._ensure_inverter_id()
+        if self._stopped:
+            return
         await self._update_cycle()
+        if self._stopped:
+            return  # stopped during the first poll: registering the timer now would leak it
         self._unsub_timer = async_track_time_interval(self.hass, self._update_cycle, timedelta(seconds=self.controller.poll_interval))
 
     async def _ensure_inverter_id(self):
@@ -234,6 +239,7 @@ class CloudDataRetrieval:
             mark_platform_entities_unavailable_for_base_sensors(self.hass, disabled)
 
     async def async_stop(self):
+        self._stopped = True
         if self._unsub_start is not None:
             self._unsub_start()
             self._unsub_start = None

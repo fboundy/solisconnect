@@ -44,6 +44,8 @@ class DataRetrieval:
 
         self._unsub_listeners = []
         self._startup_unsub = None  # Store startup listener separately
+        # Set by async_stop; a stopped retrieval is never restarted (the hub builds a new one).
+        self._stopped = False
 
         if self.hass.is_running:
             self.hass.create_task(self.poll_controller())
@@ -170,6 +172,7 @@ class DataRetrieval:
 
     async def async_stop(self):
         """Cancel all listeners."""
+        self._stopped = True
         # Clean up the startup listener only if it hasn't fired yet
         if self._startup_unsub:
             self._startup_unsub()
@@ -229,7 +232,7 @@ class DataRetrieval:
                 self.controller.force_close()
 
             retry_delay = 0.5
-            while not self.controller.connected():
+            while not self._stopped and not self.controller.connected():
                 try:
                     if await self.controller.connect():
                         _LOGGER.info(f"✅({self.controller.host}.{self.controller.slave}) Modbus controller connected successfully.")
@@ -261,6 +264,8 @@ class DataRetrieval:
             self._startup_unsub = None
 
         await self.check_connection()
+        if self._stopped:
+            return  # stopped while connecting: registering timers now would leak them
 
         # Start periodic polling
         self._unsub_listeners.append(async_track_time_interval(self.hass, self.check_connection, timedelta(minutes=2)))
